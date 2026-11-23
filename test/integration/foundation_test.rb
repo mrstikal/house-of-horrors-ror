@@ -65,6 +65,28 @@ class FoundationTest < ActionDispatch::IntegrationTest
     refute File.exist?(Rails.root.join("app/views/layouts/application.html.erb"))
   end
 
+  test "serves the bundled house and room images" do
+    get "/"
+
+    assert_response :success
+
+    house_src = nil
+    assert_select "header.home-header" do
+      assert_select "h1", "House of Horrors"
+      assert_select "img[alt='Entrance to the House of Horrors'][width='1536'][height='656']" do |images|
+        house_src = images.first["src"]
+      end
+    end
+
+    assert_match(%r{\A/assets/house_of_horrors/house-[0-9a-f]+\.jpg\z}, house_src)
+    assert_asset_bytes(house_src, Rails.root.join("sources/house.jpg"))
+
+    RoomImages.keys.each do |key|
+      url = ApplicationController.helpers.room_image_url(Room.new(image_key: key))
+      assert_asset_bytes(url, Rails.root.join("sources", File.basename(RoomImages.path_for(key))))
+    end
+  end
+
   test "a successful operation reaches the second step" do
     result = Probe.call(allow: true)
 
@@ -81,5 +103,15 @@ class FoundationTest < ActionDispatch::IntegrationTest
     assert_nil result[:second]
     assert_equal :refused, result[:code]
     assert_equal [ "Refused." ], result[:messages]
+  end
+
+  private
+
+  def assert_asset_bytes(url, source_path)
+    get url
+
+    assert_response :success
+    assert_equal "image/jpeg", response.media_type
+    assert_equal File.binread(source_path), response.body.b
   end
 end
