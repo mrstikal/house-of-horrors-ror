@@ -3,4 +3,10 @@ Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
   root "home#show"
+
+  get "admin", to: "admin/dashboard#show", as: :admin
+
+  namespace :admin do
+    resource :session, only: [ :create, :destroy ], controller: "sessions"
+  end
 end

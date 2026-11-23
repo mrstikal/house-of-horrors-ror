@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_23_184833) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_23_195000) do
   create_table "booking_write_locks", force: :cascade do |t|
     t.integer "token", null: false
   end
@@ -37,6 +37,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_184833) do
     t.index ["name"], name: "index_rooms_on_name", unique: true
     t.index ["seed_key"], name: "index_rooms_on_seed_key", unique: true
     t.check_constraint "capacity > 0", name: "rooms_capacity_positive"
+  end
+
+  create_table "users", force: :cascade do |t|
+    t.string "email_address", limit: 254, null: false
+    t.string "password_digest", null: false
+    t.string "role", limit: 8, default: "guest", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email_address"], name: "index_users_on_email_address", unique: true
+    t.check_constraint "role IN ('guest', 'admin')", name: "users_role_valid"
   end
 
   add_foreign_key "reservations", "rooms", on_delete: :restrict

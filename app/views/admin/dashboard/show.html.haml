@@ -1,0 +1,18 @@
+- content_for :title, "Administration"
+%main.admin-dashboard
+  %h1 Administration
+  - if current_admin
+    %p Signed in as #{current_admin.email_address}.
+    = button_to "Log out", admin_session_path, method: :delete
+  - else
+    %p Enter the administration area.
+    - if @error_message
+      %p.admin-error= @error_message
+    = form_with scope: :session, url: admin_session_path, local: true do |form|
+      .field
+        = form.label :email_address, "Email address"
+        = form.email_field :email_address, required: true, value: nil
+      .field
+        = form.label :password
+        = form.password_field :password, required: true, value: nil
+      = form.submit "Sign in"

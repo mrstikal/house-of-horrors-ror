@@ -9,7 +9,7 @@ gem "haml-rails", "3.1.0"
 gem "haml", "7.5.2"
 gem "trailblazer-operation", "0.11.1"
 
-# gem "bcrypt", "~> 3.1.7"
+gem "bcrypt", "~> 3.1.7"
 
 gem "tzinfo-data", platforms: %i[ windows jruby ]
 
