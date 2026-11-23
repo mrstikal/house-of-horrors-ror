@@ -1,0 +1,2 @@
+class BookingWriteLock < ApplicationRecord
+end

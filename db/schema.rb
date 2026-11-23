@@ -10,7 +10,11 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_23_183448) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_23_184833) do
+  create_table "booking_write_locks", force: :cascade do |t|
+    t.integer "token", null: false
+  end
+
   create_table "reservations", force: :cascade do |t|
     t.integer "room_id", null: false
     t.datetime "start_datetime", null: false
