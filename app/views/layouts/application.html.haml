@@ -1,0 +1,11 @@
+!!!
+%html
+  %head
+    %title= content_for(:title) || "House of Horrors"
+    %meta{ name: "viewport", content: "width=device-width,initial-scale=1" }
+    = csrf_meta_tags
+    = stylesheet_link_tag "application"
+  %body
+    %nav
+      = link_to "Homepage", root_path
+    = yield

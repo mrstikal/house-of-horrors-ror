@@ -1,0 +1,22 @@
+<%
+  mode = ENV.fetch("HOH_DB", "sqlite")
+  raise "HOH_DB must be sqlite or mysql" unless %w[sqlite mysql].include?(mode)
+  raise "HOH_DB=mysql is not available until stage S01b" if mode == "mysql"
+
+  suffix_value = ENV.fetch("HOH_DB_SUFFIX", "")
+  raise "HOH_DB_SUFFIX must match \\A[a-z0-9]{0,20}\\z" unless suffix_value.match?(/\A[a-z0-9]{0,20}\z/)
+  suffix = suffix_value.empty? ? "" : "_#{suffix_value}"
+%>
+default: &default
+  adapter: sqlite3
+  max_connections: 5
+  timeout: 5000
+  schema_dump: schema.rb
+
+development:
+  <<: *default
+  database: storage/development<%= suffix %>.sqlite3
+
+test:
+  <<: *default
+  database: storage/test<%= suffix %>.sqlite3
