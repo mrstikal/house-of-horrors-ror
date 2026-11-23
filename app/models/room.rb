@@ -1,4 +1,6 @@
 class Room < ApplicationRecord
+  has_many :reservations, dependent: :restrict_with_error
+
   validates :name, presence: true, length: { maximum: 120 }, uniqueness: true
   validates :description, presence: true, length: { maximum: 2000 }
   validates :capacity, presence: true, numericality: {
