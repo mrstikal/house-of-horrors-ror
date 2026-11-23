@@ -1,22 +1,33 @@
 <%
   mode = ENV.fetch("HOH_DB", "sqlite")
   raise "HOH_DB must be sqlite or mysql" unless %w[sqlite mysql].include?(mode)
-  raise "HOH_DB=mysql is not available until stage S01b" if mode == "mysql"
 
   suffix_value = ENV.fetch("HOH_DB_SUFFIX", "")
   raise "HOH_DB_SUFFIX must match \\A[a-z0-9]{0,20}\\z" unless suffix_value.match?(/\A[a-z0-9]{0,20}\z/)
   suffix = suffix_value.empty? ? "" : "_#{suffix_value}"
 %>
 default: &default
-  adapter: sqlite3
   max_connections: 5
+  schema_dump: <%= mode == "mysql" ? "mysql_schema.rb" : "schema.rb" %>
+<% if mode == "mysql" %>
+  adapter: mysql2
+  host: 127.0.0.1
+  port: 3307
+  username: root
+  password: <%= ENV.fetch("MYSQL_ROOT_PASSWORD", "hoh-local-mysql").to_json %>
+  encoding: utf8mb4
+  collation: utf8mb4_0900_bin
+  variables:
+    innodb_lock_wait_timeout: 5
+<% else %>
+  adapter: sqlite3
   timeout: 5000
-  schema_dump: schema.rb
+<% end %>
 
 development:
   <<: *default
-  database: storage/development<%= suffix %>.sqlite3
+  database: <%= mode == "mysql" ? "house_of_horrors_development#{suffix}" : "storage/development#{suffix}.sqlite3" %>
 
 test:
   <<: *default
-  database: storage/test<%= suffix %>.sqlite3
+  database: <%= mode == "mysql" ? "house_of_horrors_test#{suffix}" : "storage/test#{suffix}.sqlite3" %>

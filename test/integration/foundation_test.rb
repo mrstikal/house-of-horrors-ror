@@ -28,11 +28,28 @@ class FoundationTest < ActionDispatch::IntegrationTest
     assert_equal RUBY_VERSION, File.read(Rails.root.join(".ruby-version")).strip
   end
 
-  test "connects through the SQLite adapter" do
+  test "connects through the selected adapter" do
     connection = ActiveRecord::Base.connection
+    db_config = connection.pool.db_config
 
-    assert_equal "SQLite", connection.adapter_name
-    assert_equal "sqlite3", connection.pool.db_config.adapter
+    case ENV.fetch("HOH_DB", "sqlite")
+    when "sqlite"
+      assert_equal "SQLite", connection.adapter_name
+      assert_equal "sqlite3", db_config.adapter
+      assert_equal "schema.rb", db_config.schema_dump
+      assert_match(%r{storage/test.*\.sqlite3\z}, db_config.database)
+    when "mysql"
+      assert_equal "Mysql2", connection.adapter_name
+      assert_equal "mysql2", db_config.adapter
+      assert_equal "mysql_schema.rb", db_config.schema_dump
+      assert_match(/\Ahouse_of_horrors_test/, db_config.database)
+
+      collation, engine = connection.select_rows("SELECT @@collation_database, @@default_storage_engine").first
+      assert_equal "utf8mb4_0900_bin", collation
+      assert_equal "InnoDB", engine
+    else
+      flunk "Unexpected HOH_DB=#{ENV.fetch("HOH_DB")}"
+    end
   end
 
   test "renders the home page from HAML" do
