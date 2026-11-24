@@ -1,18 +1,31 @@
 require "test_helper"
+require "stringio"
 
 class RoomTest < ActiveSupport::TestCase
+  setup do
+    @uploaded_blobs = []
+  end
+
+  teardown do
+    (@uploaded_blobs || []).each do |blob|
+      blob.service.delete(blob.key)
+    rescue ActiveStorage::FileNotFoundError
+      nil
+    end
+  end
+
   test "is valid with complete attributes" do
     assert build_room.valid?
   end
 
-  test "requires name, description, capacity and image key" do
+  test "requires name, description, capacity and exactly one image reference" do
     room = Room.new
 
     refute room.valid?
     assert room.errors[:name].any?
     assert room.errors[:description].any?
     assert room.errors[:capacity].any?
-    assert room.errors[:image_key].any?
+    assert room.errors[:base].any?
   end
 
   test "strips the name" do
@@ -62,6 +75,58 @@ class RoomTest < ActiveSupport::TestCase
     end
   end
 
+  test "accepts a valid uploaded image reference" do
+    blob = uploaded_blob
+    room = build_room(image_key: nil, image_blob: blob)
+
+    assert room.valid?, room.errors.full_messages.join(", ")
+    assert room.save
+    assert_nil room.image_key
+    assert_equal blob.id, room.image_blob_id
+  end
+
+  test "normalizes a blank image key when a blob is present" do
+    room = build_room(image_key: "", image_blob: uploaded_blob)
+
+    assert room.valid?, room.errors.full_messages.join(", ")
+    assert_nil room.image_key
+  end
+
+  test "rejects missing and multiple image references" do
+    missing = build_room(image_key: nil)
+    both = build_room(image_key: "basement", image_blob: uploaded_blob)
+
+    refute missing.valid?
+    assert missing.errors[:base].any?
+    refute both.valid?
+    assert both.errors[:base].any?
+  end
+
+  test "rejects a blob outside the upload catalog" do
+    blob = uploaded_blob(content_type: "image/gif", bytes: "GIF89a", filename: "room.gif")
+    room = build_room(image_key: nil, image_blob: blob)
+
+    refute room.valid?
+    assert room.errors[:image_blob].any?
+  end
+
+  test "restricts deleting a referenced blob" do
+    blob = uploaded_blob
+    create_room(image_key: nil, image_blob: blob)
+
+    assert_raises(ActiveRecord::InvalidForeignKey) { blob.destroy }
+  end
+
+  test "enforces exactly one image reference in the database" do
+    blob = uploaded_blob
+    room = create_room(image_key: nil, image_blob: blob)
+
+    assert_raises(ActiveRecord::StatementInvalid) do
+      Room.where(id: room.id).update_all(image_key: "basement")
+    end
+    assert_nil room.reload.image_key
+  end
+
   test "rejects duplicate names" do
     create_room(name: "The Basement")
     duplicate = build_room(name: "The Basement")
@@ -86,6 +151,19 @@ class RoomTest < ActiveSupport::TestCase
   end
 
   private
+
+  def uploaded_blob(content_type: "image/png", bytes: nil, filename: "room.png")
+    bytes ||= File.binread(Rails.root.join("test/fixtures/files/room.png"))
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: StringIO.new(bytes),
+      filename: filename,
+      content_type: content_type,
+      service_name: "room_images",
+      identify: false
+    )
+    @uploaded_blobs << blob
+    blob
+  end
 
   def build_room(overrides = {})
     Room.new({

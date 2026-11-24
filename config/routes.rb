@@ -6,6 +6,8 @@ Rails.application.routes.draw do
 
   get "admin", to: "admin/dashboard#show", as: :admin
 
+  get "room_photos/:id", to: "room_photos#show", as: :room_photo
+
   namespace :api, defaults: { format: :json } do
     get "availability", to: "availability#show", as: :availability
     resources :reservations, only: :create

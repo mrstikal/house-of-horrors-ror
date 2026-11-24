@@ -10,7 +10,35 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_23_195000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_170300) do
+  create_table "active_storage_attachments", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "record_type", null: false
+    t.bigint "record_id", null: false
+    t.bigint "blob_id", null: false
+    t.datetime "created_at", null: false
+    t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
+    t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
+  end
+
+  create_table "active_storage_blobs", force: :cascade do |t|
+    t.string "key", null: false
+    t.string "filename", null: false
+    t.string "content_type"
+    t.text "metadata"
+    t.string "service_name", null: false
+    t.bigint "byte_size", null: false
+    t.string "checksum"
+    t.datetime "created_at", null: false
+    t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
+  end
+
+  create_table "active_storage_variant_records", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.string "variation_digest", null: false
+    t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
   create_table "booking_write_locks", force: :cascade do |t|
     t.integer "token", null: false
   end
@@ -30,12 +58,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_195000) do
     t.string "name", limit: 120, null: false
     t.text "description", null: false
     t.integer "capacity", null: false
-    t.string "image_key", limit: 32, null: false
+    t.string "image_key", limit: 32
     t.string "seed_key", limit: 32
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "image_blob_id"
+    t.index ["image_blob_id"], name: "index_rooms_on_image_blob_id"
     t.index ["name"], name: "index_rooms_on_name", unique: true
     t.index ["seed_key"], name: "index_rooms_on_seed_key", unique: true
+    t.check_constraint "(image_key IS NULL) <> (image_blob_id IS NULL)", name: "rooms_exactly_one_image_reference"
     t.check_constraint "capacity > 0", name: "rooms_capacity_positive"
   end
 
@@ -49,5 +80,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_23_195000) do
     t.check_constraint "role IN ('guest', 'admin')", name: "users_role_valid"
   end
 
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "reservations", "rooms", on_delete: :restrict
+  add_foreign_key "rooms", "active_storage_blobs", column: "image_blob_id", on_delete: :restrict
 end

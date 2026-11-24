@@ -1,3 +1,15 @@
+<%
+  mode = ENV.fetch("HOH_DB", "sqlite")
+  raise "HOH_DB must be sqlite or mysql" unless %w[sqlite mysql].include?(mode)
+
+  suffix_value = ENV.fetch("HOH_DB_SUFFIX", "")
+  raise "HOH_DB_SUFFIX must match \\A[a-z0-9]{0,20}\\z" unless suffix_value.match?(/\A[a-z0-9]{0,20}\z/)
+  suffix = suffix_value.empty? ? "" : "_#{suffix_value}"
+%>
+room_images:
+  service: Disk
+  root: <%= Rails.root.join("storage", "room_images", "#{Rails.env}-#{mode}#{suffix}") %>
+
 test:
   service: Disk
   root: <%= Rails.root.join("tmp/storage") %>
@@ -5,23 +17,3 @@ test:
 local:
   service: Disk
   root: <%= Rails.root.join("storage") %>
-
-# Use bin/rails credentials:edit to set the AWS secrets (as aws:access_key_id|secret_access_key)
-# amazon:
-#   service: S3
-#   access_key_id: <%= Rails.application.credentials.dig(:aws, :access_key_id) %>
-#   secret_access_key: <%= Rails.application.credentials.dig(:aws, :secret_access_key) %>
-#   region: us-east-1
-#   bucket: your_own_bucket-<%= Rails.env %>
-
-# Remember not to checkin your GCS keyfile to a repository
-# google:
-#   service: GCS
-#   project: your_project
-#   credentials: <%= Rails.root.join("path/to/gcs.keyfile") %>
-#   bucket: your_own_bucket-<%= Rails.env %>
-
-# mirror:
-#   service: Mirror
-#   primary: local
-#   mirrors: [ amazon, google, microsoft ]
