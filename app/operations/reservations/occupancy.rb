@@ -13,5 +13,14 @@ module Reservations
         .count
         .transform_keys { |start| start.utc }
     end
+
+    def self.peak(room_id:)
+      Reservation
+        .where(room_id: room_id)
+        .group(:start_datetime)
+        .count
+        .values
+        .max || 0
+    end
   end
 end
