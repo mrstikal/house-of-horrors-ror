@@ -14,10 +14,12 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  document.querySelectorAll("meta[name='csrf-token']").forEach((meta) => meta.remove());
 });
 
 const TODAY = "2026-11-24";
 const AVAILABILITY_PATH = "/api/availability";
+const RESERVATIONS_PATH = "/api/reservations";
 
 const rooms = [
   {
@@ -67,6 +69,13 @@ function deferred() {
   return { promise, resolve };
 }
 
+function setCsrfToken(token = "test-csrf-token") {
+  const meta = document.createElement("meta");
+  meta.setAttribute("name", "csrf-token");
+  meta.setAttribute("content", token);
+  document.head.appendChild(meta);
+}
+
 function renderApp(fetchMock, props = {}) {
   vi.stubGlobal("fetch", fetchMock);
 
@@ -75,6 +84,7 @@ function renderApp(fetchMock, props = {}) {
       rooms={rooms}
       today={TODAY}
       availabilityPath={AVAILABILITY_PATH}
+      reservationsPath={RESERVATIONS_PATH}
       {...props}
     />
   );
@@ -145,7 +155,7 @@ describe("BookingApp", () => {
     expect(option.textContent).toContain("2 places left");
     expect(screen.getByLabelText("Start time").value).toBe("");
     expect(screen.queryByText("Only 1 place left!")).toBeNull();
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByRole("button", { name: "Book this slot" }).disabled).toBe(true);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [ url, options ] = fetchMock.mock.calls[0];
@@ -280,5 +290,165 @@ describe("BookingApp", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(fetchMock.mock.calls[0][0]).toBe(`${AVAILABILITY_PATH}?room_id=1&date=${TODAY}`);
+  });
+
+  it("keeps submission disabled until a currently offered hour is selected", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(availability(1, TODAY, [ slot(1, 2) ]));
+    renderApp(fetchMock);
+
+    const submit = screen.getByRole("button", { name: "Book this slot" });
+    expect(submit.disabled).toBe(true);
+
+    const slotSelect = await screen.findByLabelText("Start time");
+    await waitFor(() => expect(within(slotSelect).getByRole("option", { name: /01:00-02:00 UTC/ })).toBeTruthy());
+    expect(submit.disabled).toBe(true);
+
+    fireEvent.change(slotSelect, { target: { value: "1" } });
+    expect(submit.disabled).toBe(false);
+  });
+
+  it("posts once with the CSRF token and body, then refreshes without clearing feedback", async () => {
+    setCsrfToken();
+    const refresh = deferred();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(availability(1, TODAY, [ slot(1, 1, true) ]))
+      .mockResolvedValueOnce(jsonResponse({ reservation: { id: 12 } }))
+      .mockReturnValueOnce(refresh.promise);
+    renderApp(fetchMock);
+
+    const slotSelect = await screen.findByLabelText("Start time");
+    await waitFor(() => expect(within(slotSelect).getByRole("option", { name: /01:00-02:00 UTC/ })).toBeTruthy());
+    fireEvent.change(slotSelect, { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Book this slot" }));
+
+    expect(await screen.findByText("Your booking is confirmed.")).toBeTruthy();
+
+    const posts = fetchMock.mock.calls.filter(([, options]) => options?.method === "POST");
+    expect(posts).toHaveLength(1);
+    const [ url, options ] = posts[0];
+    expect(url).toBe(RESERVATIONS_PATH);
+    expect(options.credentials).toBe("same-origin");
+    expect(options.headers).toEqual({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-CSRF-Token": "test-csrf-token"
+    });
+    expect(JSON.parse(options.body)).toEqual({
+      reservation: { room_id: 1, date: TODAY, start_hour: 1 }
+    });
+
+    expect(screen.getByLabelText("Start time").value).toBe("");
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.filter(([ requestUrl ]) => requestUrl.startsWith(AVAILABILITY_PATH))).toHaveLength(2);
+    });
+    expect(fetchMock.mock.calls.at(-1)[0]).toBe(`${AVAILABILITY_PATH}?room_id=1&date=${TODAY}`);
+
+    fireEvent.click(screen.getByRole("button", { name: "Book this slot" }));
+    expect(fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
+    expect(screen.getByText("Your booking is confirmed.")).toBeTruthy();
+
+    await act(async () => {
+      refresh.resolve(availability(1, TODAY, []));
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("Your booking is confirmed.")).toBeTruthy();
+  });
+
+  it("shows conflict feedback and refreshes after a 409 without clearing it", async () => {
+    setCsrfToken();
+    const refresh = deferred();
+    const conflict = {
+      ok: false,
+      status: 409,
+      json: async () => ({
+        error: {
+          code: "slot_full",
+          messages: [ "This slot has just filled up. Select another time." ]
+        }
+      })
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(availability(1, TODAY, [ slot(1, 1, true) ]))
+      .mockResolvedValueOnce(conflict)
+      .mockReturnValueOnce(refresh.promise);
+    renderApp(fetchMock);
+
+    const slotSelect = await screen.findByLabelText("Start time");
+    await waitFor(() => expect(within(slotSelect).getByRole("option", { name: /01:00-02:00 UTC/ })).toBeTruthy());
+    fireEvent.change(slotSelect, { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Book this slot" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("This slot has just filled up. Select another time.");
+    expect(screen.getByLabelText("Start time").value).toBe("");
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.filter(([ requestUrl ]) => requestUrl.startsWith(AVAILABILITY_PATH))).toHaveLength(2);
+    });
+    expect(screen.getByRole("alert").textContent).toBe("This slot has just filled up. Select another time.");
+
+    await act(async () => {
+      refresh.resolve(availability(1, TODAY, []));
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("alert").textContent).toBe("This slot has just filled up. Select another time.");
+  });
+
+  it("reports an ambiguous network failure and refreshes without auto-posting", async () => {
+    setCsrfToken();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(availability(1, TODAY, [ slot(1, 1, true) ]))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(availability(1, TODAY, []));
+    renderApp(fetchMock);
+
+    const slotSelect = await screen.findByLabelText("Start time");
+    await waitFor(() => expect(within(slotSelect).getByRole("option", { name: /01:00-02:00 UTC/ })).toBeTruthy());
+    fireEvent.change(slotSelect, { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Book this slot" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("could have succeeded");
+    expect(alert.textContent).toContain("does not confirm");
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.filter(([ requestUrl ]) => requestUrl.startsWith(AVAILABILITY_PATH))).toHaveLength(2);
+    });
+    const posts = fetchMock.mock.calls.filter(([, options]) => options?.method === "POST");
+    expect(posts).toHaveLength(1);
+    expect(screen.getByRole("alert").textContent).toContain("could have succeeded");
+  });
+
+  it("disables edits and submission while a POST is pending", async () => {
+    setCsrfToken();
+    const post = deferred();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(availability(1, TODAY, [ slot(1, 1, true) ]))
+      .mockReturnValueOnce(post.promise)
+      .mockResolvedValueOnce(availability(1, TODAY, []));
+    renderApp(fetchMock);
+
+    const slotSelect = await screen.findByLabelText("Start time");
+    await waitFor(() => expect(within(slotSelect).getByRole("option", { name: /01:00-02:00 UTC/ })).toBeTruthy());
+    fireEvent.change(slotSelect, { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Book this slot" }));
+
+    expect(screen.getByLabelText("Room").disabled).toBe(true);
+    expect(screen.getByLabelText("Date").disabled).toBe(true);
+    expect(screen.getByLabelText("Start time").disabled).toBe(true);
+    const booking = screen.getByRole("button", { name: "Booking…" });
+    expect(booking.disabled).toBe(true);
+    fireEvent.click(booking);
+    expect(fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(1);
+
+    await act(async () => {
+      post.resolve(jsonResponse({ reservation: { id: 13 } }));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Room").disabled).toBe(false));
+    expect(screen.getByLabelText("Date").disabled).toBe(false);
   });
 });

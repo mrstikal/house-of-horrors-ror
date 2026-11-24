@@ -88,6 +88,42 @@ nav a {
   margin: 1rem 0 0;
 }
 
+.booking-actions {
+  margin-top: 1rem;
+}
+
+.booking-submit {
+  padding: 0.65rem 1.1rem;
+  border: 1px solid #6b2020;
+  border-radius: 0.35rem;
+  background: #7a1f1f;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.booking-submit:disabled {
+  background: #b9a8a8;
+  border-color: #b9a8a8;
+  color: #4a3e3e;
+  cursor: not-allowed;
+}
+
+.booking-success,
+.booking-feedback-error {
+  margin: 1rem 0 0;
+  font-weight: 600;
+}
+
+.booking-success {
+  color: #245c2b;
+}
+
+.booking-feedback-error {
+  color: #8a1c1c;
+}
+
 .booking-error {
   color: #8a1c1c;
   font-weight: 600;

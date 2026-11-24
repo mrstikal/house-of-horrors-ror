@@ -10,6 +10,7 @@ if (root) {
       rooms={config.rooms}
       today={config.today}
       availabilityPath={config.availability_path}
+      reservationsPath={config.reservations_path}
     />
   );
 }
