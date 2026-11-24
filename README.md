@@ -4,6 +4,8 @@ A small Rails demo of four deliberately unsettling rooms, one-hour bookings, and
 
 ## 1. Selected Theme
 
+I like horror movies with a touch of absurd humor (e.g., Peter Jackson’s *Bad Taste*), and I found this theme more interesting than swimming pools or generic rooms :). So, we have four immersive experience rooms based on various absurdly terrifying themes.
+
 House of Horrors is a tongue-in-cheek booking site for four rooms: The Basement Where Mobile Signal Goes to Die, The Bathroom That Judges You, The Kitchen of Leftovers That Watch You Back, and The Attic Full of Clowns Doing Taxes. Guests pick a room, a UTC date and one aligned hourly slot; each slot has a capacity and can fill up. Guests book anonymously. Administrators sign in at `/admin`, manage rooms and images, and list, create, edit and delete reservations.
 
 The five supplied JPEGs in `sources/` drive the visual identity: `house.jpg` is the Homepage header, and `room1.jpg` through `room4.jpg` map to the four rooms in catalog order. The header image is rendered by HAML above the booking component and is visible without JavaScript. The Administration area never shows the house header.
@@ -85,6 +87,10 @@ In both cases, a busy result is safer than an overbooked room. The public bookin
 - `bcrypt` `~> 3.1` and Rails encrypted cookie sessions for the demo admin account.
 - Rails Minitest and `rubocop-rails-omakase` 1.1.0; Vitest 5.1.1, Vite 8.3.8, jsdom 31.0.1, and Testing Library React 16.3.3 / DOM 10.4.1 for the component tests.
 - No Turbo, no client router, no separate JavaScript server, and no JavaScript bundling gem.
+
+### Note: 
+I used HAML instead of ERB templates; I’m used to them (having worked with RoR for two years), and I find them clearer, cleaner, and more "Ruby-like."  
+I also incorporated my favorite, Trailblazer, because it simplifies the code and aligns with the RoR concept of "Convention over Configuration."
 
 ## 5. Project Setup
 
