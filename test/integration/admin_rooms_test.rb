@@ -164,6 +164,30 @@ class AdminRoomsTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?]", admin_rooms_path
   end
 
+  test "returns 422 for scalar and array room wrappers" do
+    room = commit_room!(name: "Malformed Wrapper Room", capacity: 2)
+
+    [ "not-a-room", [ "name" ] ].each do |wrapper|
+      post admin_rooms_path, params: { room: wrapper }
+      assert_response :unprocessable_entity
+      assert_select ".admin-error", text: "Select valid room details."
+
+      patch admin_room_path(room), params: { room: wrapper }
+      assert_response :unprocessable_entity
+      assert_select ".admin-error", text: "Select valid room details."
+    end
+
+    post admin_rooms_path
+    assert_response :unprocessable_entity
+    assert_select ".admin-error", text: "Select valid room details."
+
+    patch admin_room_path(room)
+    assert_response :unprocessable_entity
+    assert_select ".admin-error", text: "Select valid room details."
+
+    assert_equal "Malformed Wrapper Room", room.reload.name
+  end
+
   test "preserves raw capacity and an unsupported image choice on refusal" do
     before = Room.count
 

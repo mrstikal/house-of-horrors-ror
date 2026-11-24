@@ -178,6 +178,22 @@ class DemoSeedsTest < ActiveSupport::TestCase
     assert_equal 0, Reservation.count
   end
 
+  test "rejects duplicate room and slot groups unless an override is explicit" do
+    seeds = DemoSeeds.new
+    room = Room.new(id: 123)
+    date = Time.current.to_date + 1
+    groups = {}
+
+    seeds.send(:set_group, groups, room, date, 1, 2)
+    error = assert_raises(RuntimeError) do
+      seeds.send(:set_group, groups, room, date, 1, 3)
+    end
+    assert_equal "DemoSeeds produced duplicate room/slot groups", error.message
+
+    seeds.send(:set_group, groups, room, date, 1, 3, override: true)
+    assert_equal 3, groups.values.first.last
+  end
+
   private
 
   def assert_catalog

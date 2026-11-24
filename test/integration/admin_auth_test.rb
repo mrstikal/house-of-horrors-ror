@@ -67,6 +67,43 @@ class AdminAuthTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "returns 403 for an unauthenticated logout before the CSRF check" do
+    previous = ActionController::Base.allow_forgery_protection
+    ActionController::Base.allow_forgery_protection = true
+
+    begin
+      delete admin_session_path
+      assert_response :forbidden
+    ensure
+      ActionController::Base.allow_forgery_protection = previous
+    end
+  end
+
+  test "rejects an admin session issued for a different database" do
+    expires_at = 1.hour.from_now.to_i
+    admin_id = @admin.id
+    other_session = {
+      admin_user_id: admin_id,
+      admin_expires_at: expires_at,
+      admin_database: "other-database"
+    }
+    other_controller = ApplicationController.new
+    other_controller.define_singleton_method(:session) { other_session }
+
+    assert_nil other_controller.send(:current_admin)
+
+    matching_controller = ApplicationController.new
+    matching_controller.define_singleton_method(:session) do
+      {
+        admin_user_id: admin_id,
+        admin_expires_at: expires_at,
+        admin_database: matching_controller.send(:admin_database_identity)
+      }
+    end
+
+    assert_equal @admin, matching_controller.send(:current_admin)
+  end
+
   test "logs out and denies a second logout" do
     sign_in(@admin)
     assert_response :see_other

@@ -146,8 +146,8 @@ describe("BookingApp", () => {
     );
     renderApp(fetchMock);
 
-    expect(screen.getByLabelText("Date").value).toBe(TODAY);
-    expect(screen.getByLabelText("Date").min).toBe(TODAY);
+    expect(screen.getByLabelText("Date (UTC)").value).toBe(TODAY);
+    expect(screen.getByLabelText("Date (UTC)").min).toBe(TODAY);
     expect(screen.getByLabelText("Start time").value).toBe("");
 
     const option = await screen.findByRole("option", { name: /01:00-02:00 UTC/ });
@@ -217,7 +217,7 @@ describe("BookingApp", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(fetchMock.mock.calls[1][0]).toBe(`${AVAILABILITY_PATH}?room_id=2&date=${TODAY}`);
 
-    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-11-25" } });
+    fireEvent.change(screen.getByLabelText("Date (UTC)"), { target: { value: "2026-11-25" } });
 
     expect(screen.getByLabelText("Start time").value).toBe("");
     expect(within(screen.getByLabelText("Start time")).queryByRole("option", { name: /02:00-03:00 UTC/ })).toBeNull();
@@ -272,11 +272,58 @@ describe("BookingApp", () => {
     expect(screen.getByLabelText("Start time").value).toBe("");
     expect(within(screen.getByLabelText("Start time")).queryAllByRole("option")).toHaveLength(1);
 
-    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-11-25" } });
+    fireEvent.change(screen.getByLabelText("Date (UTC)"), { target: { value: "2026-11-25" } });
 
     expect((await screen.findByRole("alert")).textContent).toBe("Availability could not be loaded. Try again.");
     expect(screen.getByLabelText("Start time").value).toBe("");
     expect(within(screen.getByLabelText("Start time")).queryAllByRole("option")).toHaveLength(1);
+  });
+
+  it("shows the server reason for an availability failure and retries the same request", async () => {
+    const failure = {
+      ok: false,
+      status: 503,
+      json: async () => ({
+        error: {
+          code: "busy",
+          messages: [ "The booking system is busy. Try again." ]
+        }
+      })
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(failure)
+      .mockResolvedValueOnce(availability(1, TODAY, [ slot(1, 2) ]));
+    renderApp(fetchMock);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("The booking system is busy. Try again.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByRole("option", { name: /01:00-02:00 UTC/ })).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe(`${AVAILABILITY_PATH}?room_id=1&date=${TODAY}`);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("keeps large room ids as exact strings in requests", async () => {
+    const largeId = "9007199254740993";
+    const fetchMock = vi.fn().mockResolvedValue(availability(largeId, TODAY, [ slot(1, 2) ]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <BookingApp
+        rooms={[ { ...rooms[0], id: largeId } ]}
+        today={TODAY}
+        availabilityPath={AVAILABILITY_PATH}
+        reservationsPath={RESERVATIONS_PATH}
+      />
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `${AVAILABILITY_PATH}?room_id=${largeId}&date=${TODAY}`
+    );
   });
 
   it("does not fetch until both room and date are present", async () => {
@@ -286,7 +333,7 @@ describe("BookingApp", () => {
     expect(screen.getByText("Select a room and date to see available times.")).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText("Date"), { target: { value: TODAY } });
+    fireEvent.change(screen.getByLabelText("Date (UTC)"), { target: { value: TODAY } });
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(fetchMock.mock.calls[0][0]).toBe(`${AVAILABILITY_PATH}?room_id=1&date=${TODAY}`);
@@ -322,6 +369,9 @@ describe("BookingApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "Book this slot" }));
 
     expect(await screen.findByText("Your booking is confirmed.")).toBeTruthy();
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByText("Your booking is confirmed."));
+    });
 
     const posts = fetchMock.mock.calls.filter(([, options]) => options?.method === "POST");
     expect(posts).toHaveLength(1);
@@ -334,7 +384,7 @@ describe("BookingApp", () => {
       "X-CSRF-Token": "test-csrf-token"
     });
     expect(JSON.parse(options.body)).toEqual({
-      reservation: { room_id: 1, date: TODAY, start_hour: 1 }
+      reservation: { room_id: "1", date: TODAY, start_hour: 1 }
     });
 
     expect(screen.getByLabelText("Start time").value).toBe("");
@@ -436,7 +486,7 @@ describe("BookingApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "Book this slot" }));
 
     expect(screen.getByLabelText("Room").disabled).toBe(true);
-    expect(screen.getByLabelText("Date").disabled).toBe(true);
+    expect(screen.getByLabelText("Date (UTC)").disabled).toBe(true);
     expect(screen.getByLabelText("Start time").disabled).toBe(true);
     const booking = screen.getByRole("button", { name: "Booking…" });
     expect(booking.disabled).toBe(true);
@@ -449,6 +499,6 @@ describe("BookingApp", () => {
     });
 
     await waitFor(() => expect(screen.getByLabelText("Room").disabled).toBe(false));
-    expect(screen.getByLabelText("Date").disabled).toBe(false);
+    expect(screen.getByLabelText("Date (UTC)").disabled).toBe(false);
   });
 });

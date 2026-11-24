@@ -1,8 +1,8 @@
 module Api
   class ReservationsController < BaseController
     def create
-      reservation = params[:reservation]
-      unless reservation.is_a?(ActionController::Parameters)
+      reservation = body_reservation_params
+      unless reservation
         return render_error(:invalid_input, [ "Select a valid room, date and hour." ])
       end
 
@@ -27,6 +27,16 @@ module Api
       else
         render_error(result[:code], result[:messages])
       end
+    end
+
+    private
+
+    def body_reservation_params
+      value = request.request_parameters["reservation"]
+      return value if value.is_a?(ActionController::Parameters)
+      return ActionController::Parameters.new(value) if value.is_a?(Hash)
+
+      nil
     end
   end
 end

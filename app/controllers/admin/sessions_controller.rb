@@ -5,7 +5,7 @@ module Admin
     rate_limit to: 10, within: 3.minutes, only: :create,
       store: RATE_LIMIT_STORE, with: :render_rate_limited, prepend: true
 
-    before_action :require_admin, only: :destroy
+    before_action :require_admin, only: :destroy, prepend: true
 
     def create
       email_address = session_params[:email_address]
@@ -19,6 +19,7 @@ module Admin
         reset_session
         session[:admin_user_id] = user.id
         session[:admin_expires_at] = 8.hours.from_now.to_i
+        session[:admin_database] = admin_database_identity
         redirect_to admin_path, status: :see_other
       else
         render_login_error("Invalid email or password.", :unprocessable_entity)

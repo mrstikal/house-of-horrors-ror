@@ -135,24 +135,29 @@ class DemoSeeds
   def apply_overrides(groups, rooms, tomorrow)
     week_out = tomorrow + 6
 
-    set_group(groups, rooms.fetch("basement"), tomorrow, 1, 9)
-    set_group(groups, rooms.fetch("kitchen"), tomorrow, 1, 2)
-    set_group(groups, rooms.fetch("attic"), tomorrow, 1, 5)
-    set_group(groups, rooms.fetch("basement"), tomorrow, 2, 3)
-    set_group(groups, rooms.fetch("basement"), tomorrow, 3, 0)
+    set_group(groups, rooms.fetch("basement"), tomorrow, 1, 9, override: true)
+    set_group(groups, rooms.fetch("kitchen"), tomorrow, 1, 2, override: true)
+    set_group(groups, rooms.fetch("attic"), tomorrow, 1, 5, override: true)
+    set_group(groups, rooms.fetch("basement"), tomorrow, 2, 3, override: true)
+    set_group(groups, rooms.fetch("basement"), tomorrow, 3, 0, override: true)
 
-    set_group(groups, rooms.fetch("bathroom"), week_out, 2, 0)
-    set_group(groups, rooms.fetch("attic"), week_out, 4, 0)
+    set_group(groups, rooms.fetch("bathroom"), week_out, 2, 0, override: true)
+    set_group(groups, rooms.fetch("attic"), week_out, 4, 0, override: true)
 
     [ 1, 2, 3, 5, 6 ].each do |hour|
-      set_group(groups, rooms.fetch("attic"), week_out, hour, 6)
+      set_group(groups, rooms.fetch("attic"), week_out, hour, 6, override: true)
     end
   end
 
-  def set_group(groups, room, date, hour, count)
+  def set_group(groups, room, date, hour, count, override: false)
     start_at, end_at = BookingSlots.interval(date, hour)
+    key = [ room.id, start_at ]
 
-    groups[[ room.id, start_at ]] = [ room, start_at, end_at, count ]
+    if groups.key?(key) && !override
+      raise "DemoSeeds produced duplicate room/slot groups"
+    end
+
+    groups[key] = [ room, start_at, end_at, count ]
   end
 
   def verify_rows!(rows)

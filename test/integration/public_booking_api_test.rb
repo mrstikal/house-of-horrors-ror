@@ -34,7 +34,7 @@ class PublicBookingApiTest < ActionDispatch::IntegrationTest
     assert_equal "no-store", response.headers["Cache-Control"]
 
     body = response.parsed_body
-    assert_equal room.id, body["room_id"]
+    assert_equal room.id.to_s, body["room_id"]
     assert_equal future_date.iso8601, body["date"]
     assert_equal (1..6).to_a, body["slots"].map { |slot| slot["start_hour"] }
 
@@ -159,6 +159,38 @@ class PublicBookingApiTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
     assert_equal "invalid_input", response.parsed_body.dig("error", "code")
     assert_equal 0, Reservation.where(room_id: room.id).count
+  end
+
+  test "uses only the JSON body when query parameters also carry a reservation" do
+    room = commit_room!(capacity: 2, name: "API Query Body Room")
+    other = commit_room!(capacity: 2, name: "API Query Other Room")
+    date = future_date.iso8601
+    query = {
+      reservation: {
+        room_id: other.id,
+        date: date,
+        start_hour: 1
+      }
+    }
+
+    post api_reservations_path(query),
+      params: { reservation: { room_id: room.id, date: date, start_hour: 2 } }.to_json,
+      headers: { "CONTENT_TYPE" => "application/json", "ACCEPT" => "application/json" }
+
+    assert_response :created
+    body = response.parsed_body
+    assert_equal room.id, body.dig("reservation", "room_id")
+    assert_equal BookingSlots.interval(future_date, 2).first.iso8601,
+      body.dig("reservation", "start_datetime")
+    refute Reservation.exists?(room_id: other.id)
+
+    post api_reservations_path(query),
+      params: {}.to_json,
+      headers: { "CONTENT_TYPE" => "application/json", "ACCEPT" => "application/json" }
+
+    assert_response :unprocessable_entity
+    assert_equal "invalid_input", response.parsed_body.dig("error", "code")
+    assert_equal 1, Reservation.where(room_id: room.id).count
   end
 
   test "returns a framework 400 for malformed JSON and writes nothing" do

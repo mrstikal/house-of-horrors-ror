@@ -59,6 +59,11 @@ class FoundationTest < ActionDispatch::IntegrationTest
     assert_includes ActionView::Template::Handlers.extensions, :haml
     assert_includes response.body, "<h1>House of Horrors</h1>"
     assert_includes response.body, "Homepage"
+    assert_select "html[lang='en']"
+    assert_select "main.home-main" do
+      assert_select "header.home-header"
+      assert_select "#booking-root"
+    end
     assert File.exist?(Rails.root.join("app/views/home/show.html.haml"))
     assert File.exist?(Rails.root.join("app/views/layouts/application.html.haml"))
     refute File.exist?(Rails.root.join("app/views/home/show.html.erb"))
@@ -82,14 +87,14 @@ class FoundationTest < ActionDispatch::IntegrationTest
       assert_select "#booking-root[data-config]" do |elements|
         config = JSON.parse(elements.first["data-config"])
 
-        assert_equal Room.order(:id).pluck(:id), config["rooms"].map { |entry| entry["id"] }
+        assert_equal Room.order(:id).pluck(:id).map(&:to_s), config["rooms"].map { |entry| entry["id"] }
         assert_equal "2026-11-24", config["today"]
         assert_equal "/api/availability", config["availability_path"]
         assert_equal "/api/reservations", config["reservations_path"]
 
-        entry = config["rooms"].find { |candidate| candidate["id"] == room.id }
+        entry = config["rooms"].find { |candidate| candidate["id"] == room.id.to_s }
         assert_equal [ "capacity", "description", "id", "image_url", "name" ], entry.keys.sort
-        assert_equal room.id, entry["id"]
+        assert_equal room.id.to_s, entry["id"]
         assert_equal room.name, entry["name"]
         assert_equal description, entry["description"]
         assert_equal room.capacity, entry["capacity"]

@@ -111,6 +111,28 @@ class RoomImageUploadTest < ActiveSupport::TestCase
     assert_equal before, ActiveStorage::Blob.where(service_name: "room_images").count
   end
 
+  test "maps a database timeout to storage_unavailable without committing a catalog row" do
+    blob_class = ActiveStorage::Blob.singleton_class
+    blob_class.alias_method :__test_create_and_upload, :create_and_upload!
+    blob_class.define_method(:create_and_upload!) do |**_kwargs|
+      raise ActiveRecord::StatementTimeout, "database is busy"
+    end
+    before = RoomImages.uploads.count
+
+    begin
+      result = RoomImageUpload.call(uploaded_file(bytes: png_fixture_bytes))
+    ensure
+      blob_class.alias_method :create_and_upload!, :__test_create_and_upload
+      blob_class.remove_method :__test_create_and_upload
+    end
+
+    refute result[:ok]
+    assert_equal :storage_unavailable, result[:code]
+    assert_equal [ "Could not store the image. Try again." ], result[:messages]
+    assert_equal before, RoomImages.uploads.count
+    assert_equal before, ActiveStorage::Blob.where(service_name: "room_images").count
+  end
+
   private
 
   def png_fixture_bytes

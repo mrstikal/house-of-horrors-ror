@@ -117,6 +117,24 @@ nav a {
   font-weight: 600;
 }
 
+.booking-success:focus,
+.booking-feedback-error:focus {
+  outline: 3px solid #b23b3b;
+  outline-offset: 2px;
+}
+
+.booking-retry {
+  margin-top: 0.5rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid #6b2020;
+  border-radius: 0.35rem;
+  background: #fff;
+  color: #6b2020;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .booking-success {
   color: #245c2b;
 }

@@ -94,7 +94,7 @@ class RoomPhotosTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "#booking-root[data-config]" do |elements|
       entry = JSON.parse(elements.first["data-config"])["rooms"].find do |candidate|
-        candidate["id"] == room.id
+        candidate["id"] == room.id.to_s
       end
       assert_equal room_photo_path(blob), entry["image_url"]
     end
@@ -113,7 +113,7 @@ class RoomPhotosTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "#booking-root[data-config]" do |elements|
       entry = JSON.parse(elements.first["data-config"])["rooms"].find do |candidate|
-        candidate["id"] == room.id
+        candidate["id"] == room.id.to_s
       end
       assert_match(%r{\A/assets/house_of_horrors/room4-[0-9a-f]+\.jpg\z}, entry["image_url"])
     end

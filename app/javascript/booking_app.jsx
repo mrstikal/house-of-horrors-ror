@@ -11,27 +11,35 @@ async function readErrorMessage(response) {
   }
 }
 
+function normalizeRoomId(id) {
+  return id === null || id === undefined ? null : String(id);
+}
+
+const GENERIC_AVAILABILITY_ERROR = "Availability could not be loaded. Try again.";
+
 export function BookingApp({
   rooms = [],
   today = "",
   availabilityPath,
   reservationsPath
 }) {
-  const [selectedRoomId, setSelectedRoomId] = useState(rooms[0]?.id ?? null);
+  const [selectedRoomId, setSelectedRoomId] = useState(normalizeRoomId(rooms[0]?.id));
   const [date, setDate] = useState(today);
   const [selectedHour, setSelectedHour] = useState("");
   const [slots, setSlots] = useState([]);
   const [status, setStatus] = useState("loading");
+  const [availabilityError, setAvailabilityError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const generationRef = useRef(0);
   const submittingRef = useRef(false);
+  const feedbackRef = useRef(null);
 
-  const effectiveRoomId = rooms.some((room) => room.id === selectedRoomId)
+  const effectiveRoomId = rooms.some((room) => normalizeRoomId(room.id) === selectedRoomId)
     ? selectedRoomId
-    : rooms[0]?.id ?? null;
-  const selectedRoom = rooms.find((room) => room.id === effectiveRoomId);
+    : normalizeRoomId(rooms[0]?.id);
+  const selectedRoom = rooms.find((room) => normalizeRoomId(room.id) === effectiveRoomId);
   const selectedSlot = slots.find((slot) => String(slot.start_hour) === selectedHour);
   const hasInputs = Boolean(effectiveRoomId && date);
   const canSubmit = Boolean(
@@ -48,6 +56,7 @@ export function BookingApp({
       setSlots([]);
       setSelectedHour("");
       setStatus("idle");
+      setAvailabilityError(null);
       return undefined;
     }
 
@@ -65,15 +74,19 @@ export function BookingApp({
     setSlots([]);
     setSelectedHour("");
     setStatus("loading");
+    setAvailabilityError(null);
 
     fetch(`${availabilityPath}?${params.toString()}`, {
       headers: { Accept: "application/json" },
       credentials: "same-origin",
       signal: controller.signal
     })
-      .then((response) => {
+      .then(async (response) => {
         if (!response.ok) {
-          throw new Error(`Availability request failed with ${response.status}`);
+          const message = await readErrorMessage(response);
+          const error = new Error(`Availability request failed with ${response.status}`);
+          error.userMessage = message;
+          throw error;
         }
         return response.json();
       })
@@ -82,6 +95,7 @@ export function BookingApp({
 
         if (String(payload.room_id) !== String(requestedRoomId) || payload.date !== requestedDate) {
           setSlots([]);
+          setAvailabilityError(GENERIC_AVAILABILITY_ERROR);
           setStatus("error");
           return;
         }
@@ -94,6 +108,7 @@ export function BookingApp({
         if (error.name === "AbortError") return;
 
         setSlots([]);
+        setAvailabilityError(error.userMessage || GENERIC_AVAILABILITY_ERROR);
         setStatus("error");
       });
 
@@ -102,6 +117,10 @@ export function BookingApp({
       controller.abort();
     };
   }, [effectiveRoomId, date, availabilityPath, refreshKey]);
+
+  useEffect(() => {
+    if (feedback) feedbackRef.current?.focus();
+  }, [feedback]);
 
   if (rooms.length === 0) {
     return (
@@ -114,10 +133,11 @@ export function BookingApp({
 
   const handleRoomChange = (event) => {
     generationRef.current += 1;
-    setSelectedRoomId(Number(event.target.value));
+    setSelectedRoomId(event.target.value);
     setSelectedHour("");
     setSlots([]);
     setStatus("loading");
+    setAvailabilityError(null);
     setFeedback(null);
   };
 
@@ -127,6 +147,7 @@ export function BookingApp({
     setSelectedHour("");
     setSlots([]);
     setStatus("loading");
+    setAvailabilityError(null);
     setFeedback(null);
   };
 
@@ -208,7 +229,7 @@ export function BookingApp({
           ))}
         </select>
 
-        <label htmlFor="date-input">Date</label>
+        <label htmlFor="date-input">Date (UTC)</label>
         <input
           id="date-input"
           type="date"
@@ -247,6 +268,8 @@ export function BookingApp({
 
       {feedback && (
         <p
+          ref={feedbackRef}
+          tabIndex={-1}
           className={feedback.kind === "success" ? "booking-success" : "booking-feedback-error"}
           role={feedback.kind === "success" ? "status" : "alert"}
         >
@@ -261,7 +284,18 @@ export function BookingApp({
         <p className="booking-status" role="status">Loading available slots…</p>
       )}
       {hasInputs && status === "error" && (
-        <p className="booking-error" role="alert">Availability could not be loaded. Try again.</p>
+        <>
+          <p className="booking-error" role="alert">
+            {availabilityError || GENERIC_AVAILABILITY_ERROR}
+          </p>
+          <button
+            type="button"
+            className="booking-retry"
+            onClick={() => setRefreshKey((value) => value + 1)}
+          >
+            Try again
+          </button>
+        </>
       )}
       {hasInputs && status === "idle" && slots.length === 0 && (
         <p className="booking-status" role="status">No available slots for this room and date.</p>

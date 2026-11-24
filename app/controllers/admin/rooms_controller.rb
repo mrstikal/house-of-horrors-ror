@@ -24,6 +24,8 @@ module Admin
     def create
       @mode = :new
       attributes = room_params
+      return render_invalid_room(:new) unless attributes
+
       result = Rooms::Write.call(action: :create, attributes: attributes)
 
       if result[:ok]
@@ -45,6 +47,8 @@ module Admin
     def update
       @mode = :edit
       attributes = room_params
+      return render_invalid_room(:edit) unless attributes
+
       result = Rooms::Write.call(action: :update, id: @room.id, attributes: attributes)
 
       if result[:ok]
@@ -90,7 +94,19 @@ module Admin
     end
 
     def room_params
-      params.require(:room).permit(:name, :description, :capacity, :image_choice)
+      value = params[:room]
+      return nil unless value.is_a?(ActionController::Parameters)
+
+      value.permit(:name, :description, :capacity, :image_choice)
+    end
+
+    def render_invalid_room(template)
+      @room ||= Room.new
+      @submitted_capacity = nil
+      @submitted_image_choice = nil
+      flash.now[:alert] = "Select valid room details."
+      @mode = template
+      render_workspace(status: :unprocessable_entity)
     end
 
     def render_workspace(status: :ok)

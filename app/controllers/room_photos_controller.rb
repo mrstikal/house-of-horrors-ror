@@ -7,10 +7,10 @@ class RoomPhotosController < ApplicationController
     bytes = blob.download_chunk(0...blob.byte_size)
     return head :not_found unless bytes && bytes.bytesize == blob.byte_size
 
+    response.set_header("X-Content-Type-Options", "nosniff")
     send_data bytes,
       type: blob.content_type,
-      disposition: "inline",
-      headers: { "X-Content-Type-Options" => "nosniff" }
+      disposition: "inline"
   rescue ActiveStorage::FileNotFoundError
     head :not_found
   end

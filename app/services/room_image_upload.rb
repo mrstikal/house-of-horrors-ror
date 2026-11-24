@@ -18,7 +18,9 @@ class RoomImageUpload
     return failure(:invalid_input, INVALID_INPUT_MESSAGE) unless content_type
 
     success(store(io, content_type))
-  rescue IOError, SystemCallError, ActiveStorage::IntegrityError
+  rescue IOError, SystemCallError, ActiveStorage::IntegrityError,
+         ActiveRecord::StatementTimeout, ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked,
+         SQLite3::LockedException
     failure(:storage_unavailable, STORAGE_UNAVAILABLE_MESSAGE)
   end
 

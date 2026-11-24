@@ -3,7 +3,7 @@ class HomeController < ApplicationController
     @booking_config = {
       rooms: Room.order(:id).map do |room|
         {
-          id: room.id,
+          id: room.id.to_s,
           name: room.name,
           description: room.description,
           capacity: room.capacity,

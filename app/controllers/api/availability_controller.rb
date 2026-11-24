@@ -6,7 +6,7 @@ module Api
 
       if result.success?
         render json: {
-          room_id: result[:room_id],
+          room_id: result[:room_id].to_s,
           date: result[:date].iso8601,
           slots: result[:slots].map { |slot| serialize_slot(slot) }
         }
