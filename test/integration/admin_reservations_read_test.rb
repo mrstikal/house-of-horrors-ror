@@ -33,7 +33,7 @@ class AdminReservationsReadTest < ActionDispatch::IntegrationTest
     assert_select "nav a", text: "Rooms"
     ids = css_select(".admin-reservations-table tbody tr td:last-child a").map(&:text).map(&:to_i)
     assert_equal [ earlier.id, same_start.id, later.id ], ids
-    assert_select "a", text: "New reservation", count: 0
+    assert_select "a[href=?]", new_admin_reservation_path, text: "New reservation"
   end
 
   test "intersects room and UTC date filters across adjacent dates" do

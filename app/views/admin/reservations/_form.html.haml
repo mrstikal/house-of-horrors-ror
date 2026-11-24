@@ -1,0 +1,34 @@
+- room_choices = @rooms.map { |room| [ room.name, room.id.to_s ] }
+- selected_room_id = @submitted_room_id.presence || @form_room_id
+- if selected_room_id.present? && @rooms.none? { |room| room.id.to_s == selected_room_id }
+  - room_choices.unshift([ "Unsupported: #{selected_room_id}", selected_room_id ])
+
+- hour_choices = BookingSlots::HOURS.map { |hour| [ format("%02d:00-%02d:00 UTC", hour, hour + 1), hour.to_s ] }
+- selected_start_hour = @submitted_start_hour.presence || @form_start_hour
+- if selected_start_hour.present? && hour_choices.none? { |_label, value| value == selected_start_hour }
+  - hour_choices.unshift([ "Unsupported: #{selected_start_hour}", selected_start_hour ])
+
+- if @rooms.empty?
+  %p.admin-status No rooms are available. Create a room before adding a reservation.
+  %p= link_to "Create a room", new_admin_room_path, class: "admin-button"
+  %p= link_to "Back to reservations", admin_reservations_path, class: "admin-button admin-button-secondary"
+- else
+  - form_url = @mode == :new ? admin_reservations_path : admin_reservation_path(@reservation)
+  - form_method = @mode == :new ? :post : :patch
+
+  = form_with scope: :reservation, url: form_url, method: form_method, local: true,
+    html: { class: "admin-reservation-form" } do |form|
+    .field
+      = form.label :room_id, "Room"
+      = form.select :room_id, room_choices, { include_blank: "Select a room", selected: selected_room_id },
+        required: true
+    .field
+      = form.label :date, "UTC date"
+      = form.date_field :date, value: (@submitted_date.presence || @form_date), required: true
+    .field
+      = form.label :start_hour, "UTC hour"
+      = form.select :start_hour, hour_choices, { include_blank: "Select an hour", selected: selected_start_hour },
+        required: true
+    .admin-room-actions
+      = form.submit(@mode == :new ? "Create reservation" : "Update reservation", class: "admin-button")
+      = link_to "Cancel", admin_reservations_path, class: "admin-button admin-button-secondary"

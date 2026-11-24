@@ -10,9 +10,20 @@
       %dd= @reservation.end_datetime.utc.iso8601
       %dt Reservation
       %dd= @reservation.id
-    %p= link_to "Back to reservations", admin_reservations_path, class: "admin-button admin-button-secondary"
+    .admin-room-actions
+      - unless @reservation_started
+        = link_to "Edit", edit_admin_reservation_path(@reservation), class: "admin-button"
+      = button_to "Delete", admin_reservation_path(@reservation), method: :delete,
+        class: "admin-button admin-button-secondary"
+      = link_to "Back to reservations", admin_reservations_path, class: "admin-button admin-button-secondary"
+  - elsif @mode == :new || @mode == :edit
+    %h2= @mode == :new ? "New reservation" : "Edit reservation ##{@reservation.id}"
+    = render "admin/reservations/form"
   - else
-    %h2 Reservations
+    .admin-panel-header
+      %h2 Reservations
+      = link_to "New reservation", new_admin_reservation_path, class: "admin-button"
+
     - room_choices = @rooms.map { |room| [ room.name, room.id ] }
     - if @submitted_room_id.present? && @rooms.none? { |room| room.id.to_s == @submitted_room_id }
       - room_choices.unshift([ "Unsupported: #{@submitted_room_id}", @submitted_room_id ])

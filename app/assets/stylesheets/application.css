@@ -312,20 +312,24 @@ nav a {
   margin: 0;
 }
 
-.admin-room-form {
+.admin-room-form,
+.admin-reservation-form {
   display: grid;
   gap: 1rem;
   max-width: 36rem;
 }
 
-.admin-room-form .field {
+.admin-room-form .field,
+.admin-reservation-form .field {
   display: grid;
   gap: 0.3rem;
 }
 
 .admin-room-form input,
 .admin-room-form textarea,
-.admin-room-form select {
+.admin-room-form select,
+.admin-reservation-form input,
+.admin-reservation-form select {
   width: 100%;
   padding: 0.55rem;
   border: 1px solid #6b5a5a;

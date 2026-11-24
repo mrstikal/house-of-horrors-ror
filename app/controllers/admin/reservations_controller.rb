@@ -1,10 +1,12 @@
 module Admin
   class ReservationsController < BaseController
     INVALID_FILTER_MESSAGE = "Select a valid room and UTC date filter."
+    STARTED_EDIT_MESSAGE = "Started reservations cannot be edited."
 
     before_action :set_active_tab
-    before_action :load_rooms, only: :index
-    before_action :set_reservation, only: :show
+    before_action :load_rooms, only: [ :index, :new, :create, :edit, :update ]
+    before_action :set_reservation, only: [ :show, :edit, :update, :destroy ]
+    before_action :set_form_defaults, only: [ :new, :create, :edit, :update ]
 
     def index
       @mode = :index
@@ -33,6 +35,74 @@ module Admin
       render_workspace
     end
 
+    def new
+      @mode = :new
+      render_workspace
+    end
+
+    def create
+      @mode = :new
+      attributes = reservation_params
+      remember_submission(attributes)
+
+      result = Reservations::Create.call(
+        room_id: attributes[:room_id],
+        date: attributes[:date],
+        start_hour: attributes[:start_hour]
+      )
+
+      if result.success?
+        redirect_to admin_reservation_path(result[:record]), status: :see_other,
+          notice: "Reservation was successfully created."
+      else
+        render_failure(result, :new)
+      end
+    end
+
+    def edit
+      @mode = :edit
+
+      if @reservation_started
+        redirect_to admin_reservation_path(@reservation), status: :see_other,
+          alert: STARTED_EDIT_MESSAGE
+        return
+      end
+
+      render_workspace
+    end
+
+    def update
+      @mode = :edit
+      attributes = reservation_params
+      remember_submission(attributes)
+
+      result = Reservations::Update.call(
+        id: @reservation.id,
+        room_id: attributes[:room_id],
+        date: attributes[:date],
+        start_hour: attributes[:start_hour]
+      )
+
+      if result.success?
+        redirect_to admin_reservation_path(result[:record]), status: :see_other,
+          notice: "Reservation was successfully updated."
+      else
+        render_failure(result, :edit)
+      end
+    end
+
+    def destroy
+      @mode = :show
+      result = Reservations::Destroy.call(id: @reservation.id)
+
+      if result.success?
+        redirect_to admin_reservations_path, status: :see_other,
+          notice: "Reservation was successfully deleted."
+      else
+        render_failure(result, :show)
+      end
+    end
+
     private
 
     def set_active_tab
@@ -44,8 +114,38 @@ module Admin
     end
 
     def set_reservation
-      @reservation = Reservation.includes(:room).find_by(id: params[:id])
-      head :not_found unless @reservation
+      id = BookingSlots.parse_id(params[:id])
+      return head :not_found unless id
+
+      @reservation = Reservation.includes(:room).find_by(id: id)
+      return head :not_found unless @reservation
+
+      @reservation_started = @reservation.start_datetime.utc <= Time.current.utc
+    end
+
+    def set_form_defaults
+      if @reservation
+        @form_room_id = @reservation.room_id.to_s
+        @form_date = @reservation.start_datetime.utc.to_date.iso8601
+        @form_start_hour = @reservation.start_datetime.utc.hour.to_s
+      else
+        @form_room_id = nil
+        @form_date = Time.current.utc.to_date.iso8601
+        @form_start_hour = nil
+      end
+    end
+
+    def reservation_params
+      value = params[:reservation]
+      return ActionController::Parameters.new unless value.is_a?(ActionController::Parameters)
+
+      value.permit(:room_id, :date, :start_hour)
+    end
+
+    def remember_submission(attributes)
+      @submitted_room_id = scalar_value(attributes[:room_id])
+      @submitted_date = scalar_value(attributes[:date])
+      @submitted_start_hour = scalar_value(attributes[:start_hour])
     end
 
     def filter_value(key)
@@ -70,6 +170,21 @@ module Admin
       end
 
       scope
+    end
+
+    def render_failure(result, mode)
+      flash.now[:alert] = result[:messages].join(" ")
+      @mode = mode
+      render_workspace(status: failure_status(result[:code]))
+    end
+
+    def failure_status(code)
+      {
+        invalid_input: :unprocessable_entity,
+        not_found: :not_found,
+        slot_full: :conflict,
+        busy: :service_unavailable
+      }.fetch(code, :unprocessable_entity)
     end
 
     def render_workspace(status: :ok)
