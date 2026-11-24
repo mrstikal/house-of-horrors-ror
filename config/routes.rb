@@ -6,6 +6,11 @@ Rails.application.routes.draw do
 
   get "admin", to: "admin/dashboard#show", as: :admin
 
+  namespace :api, defaults: { format: :json } do
+    get "availability", to: "availability#show", as: :availability
+    resources :reservations, only: :create
+  end
+
   namespace :admin do
     resource :session, only: [ :create, :destroy ], controller: "sessions"
   end
