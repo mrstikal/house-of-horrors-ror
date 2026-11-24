@@ -1,6 +1,8 @@
-- image_choices = RoomImages.keys.map { |key| [ key.capitalize, key ] }
-- if @room.image_key.present? && RoomImages.keys.exclude?(@room.image_key)
-  - image_choices.unshift([ "Unsupported: #{@room.image_key}", @room.image_key ])
+- image_choices = RoomImages.keys.map { |key| [ key.capitalize, "bundled:#{key}" ] }
+- image_choices += RoomImages.uploads.order(:id).map { |blob| [ blob.filename.to_s, "upload:#{blob.id}" ] }
+- selected_image_choice = @submitted_image_choice.presence || room_image_choice(@room) || image_choices.first.last
+- if image_choices.none? { |_label, value| value == selected_image_choice }
+  - image_choices.unshift([ "Unsupported: #{selected_image_choice}", selected_image_choice ])
 
 = form_with model: [ :admin, @room ], local: true, html: { class: "admin-room-form" } do |form|
   .field
@@ -14,8 +16,9 @@
     = form.number_field :capacity, value: @submitted_capacity || @room.capacity,
       min: 1, step: 1, required: true
   .field
-    = form.label :image_key, "Image"
-    = form.select :image_key, image_choices
+    = form.label :image_choice, "Image"
+    = select_tag "room[image_choice]", options_for_select(image_choices, selected_image_choice),
+      id: "room_image_choice"
   .admin-room-actions
     = form.submit(@mode == :new ? "Create room" : "Update room", class: "admin-button")
     = link_to "Cancel", admin_rooms_path, class: "admin-button admin-button-secondary"

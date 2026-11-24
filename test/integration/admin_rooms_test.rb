@@ -52,9 +52,9 @@ class AdminRoomsTest < ActionDispatch::IntegrationTest
     get new_admin_room_path
     assert_response :success
     assert_select "form[action=?][method=?]", admin_rooms_path, "post"
-    assert_select "select[name=?]", "room[image_key]" do
+    assert_select "select[name=?]", "room[image_choice]" do
       RoomImages.keys.each do |key|
-        assert_select "option[value=?]", key
+        assert_select "option[value=?]", "bundled:#{key}"
       end
     end
 
@@ -62,7 +62,7 @@ class AdminRoomsTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "form[action=?][method=?]", admin_room_path(room), "post"
     assert_select "input[name=?][value=?]", "room[name]", "Visible Admin Room"
-    assert_select "select[name=?] option[selected][value=?]", "room[image_key]", "attic"
+    assert_select "select[name=?] option[selected][value=?]", "room[image_choice]", "bundled:attic"
   end
 
   test "orders the room list by name then id" do
@@ -82,7 +82,8 @@ class AdminRoomsTest < ActionDispatch::IntegrationTest
         name: "Created Admin Room",
         description: "Created through the form.",
         capacity: 2,
-        image_key: "kitchen",
+        image_choice: "bundled:kitchen",
+        image_key: "attic",
         seed_key: "ignored-seed"
       }
     }
@@ -98,6 +99,7 @@ class AdminRoomsTest < ActionDispatch::IntegrationTest
     assert_equal "Created through the form.", room.description
     assert_equal 2, room.capacity
     assert_equal "kitchen", room.image_key
+    assert_nil room.image_blob_id
     assert_nil room.seed_key
   end
 
@@ -109,7 +111,7 @@ class AdminRoomsTest < ActionDispatch::IntegrationTest
         name: "Updated Admin Room",
         description: "Updated through the form.",
         capacity: 3,
-        image_key: "attic"
+        image_choice: "bundled:attic"
       }
     }
 
@@ -124,6 +126,7 @@ class AdminRoomsTest < ActionDispatch::IntegrationTest
     assert_equal "Updated through the form.", room.description
     assert_equal 3, room.capacity
     assert_equal "attic", room.image_key
+    assert_nil room.image_blob_id
   end
 
   test "deletes an empty room" do
@@ -148,7 +151,7 @@ class AdminRoomsTest < ActionDispatch::IntegrationTest
         name: "Invalid Submitted Room",
         description: "Submitted description.",
         capacity: 0,
-        image_key: "basement"
+        image_choice: "bundled:basement"
       }
     }
 
@@ -157,6 +160,7 @@ class AdminRoomsTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Capacity must be greater than or equal to 1"
     assert_select "input[name=?][value=?]", "room[name]", "Invalid Submitted Room"
     assert_select "input[name=?][value=?]", "room[capacity]", "0"
+    assert_select "select[name=?] option[selected][value=?]", "room[image_choice]", "bundled:basement"
     assert_select "form[action=?]", admin_rooms_path
   end
 
@@ -168,14 +172,41 @@ class AdminRoomsTest < ActionDispatch::IntegrationTest
         name: "Raw Values Admin Room",
         description: "Raw values description.",
         capacity: "abc",
-        image_key: "not-a-key"
+        image_choice: "not-a-choice"
       }
     }
 
     assert_response :unprocessable_entity
     assert_equal before, Room.count
     assert_select "input[name=?][value=?]", "room[capacity]", "abc"
-    assert_select "select[name=?] option[selected][value=?]", "room[image_key]", "not-a-key"
+    assert_select "select[name=?] option[selected][value=?]", "room[image_choice]", "not-a-choice"
+  end
+
+  test "rejects malformed and unknown image choices without changing the stored reference" do
+    room = commit_room!(name: "Choice Admin Room", image_key: "basement")
+
+    [ "bundled:unknown", "upload:999999", "upload:abc", "nonsense", "", "upload:" ].each do |choice|
+      patch admin_room_path(room), params: { room: { image_choice: choice } }
+
+      assert_response :unprocessable_entity
+      assert_select ".admin-error", text: "Select a valid room image."
+    end
+
+    room.reload
+    assert_equal "basement", room.image_key
+    assert_nil room.image_blob_id
+  end
+
+  test "rejects creating a room without an image choice" do
+    before = Room.count
+
+    post admin_rooms_path, params: {
+      room: { name: "No Image Admin Room", description: "No image description.", capacity: 2 }
+    }
+
+    assert_response :unprocessable_entity
+    assert_includes response.body, "Select exactly one room image."
+    assert_equal before, Room.count
   end
 
   test "rejects capacity below the peak and preserves the database row" do
@@ -189,6 +220,7 @@ class AdminRoomsTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Capacity cannot be lower than the existing peak of 2."
     assert_select "input[name=?][value=?]", "room[capacity]", "1"
     assert_equal 2, room.reload.capacity
+    assert_equal "basement", room.image_key
     assert Room.exists?(room.id)
   end
 

@@ -6,4 +6,14 @@ module RoomImagesHelper
       asset_path(RoomImages.path_for(room.image_key))
     end
   end
+
+  def room_image_choice(room)
+    return nil unless room
+
+    if room.image_blob_id
+      "upload:#{room.image_blob_id}"
+    elsif room.image_key.present?
+      "bundled:#{room.image_key}"
+    end
+  end
 end

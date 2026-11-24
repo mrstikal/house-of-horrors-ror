@@ -1,21 +1,31 @@
 require "test_helper"
+require "stringio"
 require "timeout"
+require "active_job/test_helper"
 require_relative "../../support/committed_test_data"
 
 class RoomsWriteTest < ActiveSupport::TestCase
   include CommittedTestData
+  include ActiveJob::TestHelper
 
   setup do
     travel_to Time.utc(2026, 11, 23, 12, 0, 0)
     @time_frozen = true
     @write_room_ids = []
     @write_room_sequence = 0
+    @uploaded_blobs = []
   end
 
   teardown do
     room_ids = @write_room_ids || []
     Reservation.where(room_id: room_ids).delete_all if room_ids.any?
     Room.where(id: room_ids).delete_all if room_ids.any?
+    (@uploaded_blobs || []).each do |blob|
+      ActiveStorage::Blob.where(id: blob.id).delete_all
+      blob.service.delete(blob.key)
+    rescue ActiveStorage::FileNotFoundError
+      nil
+    end
     travel_back if @time_frozen
   end
 
@@ -26,7 +36,7 @@ class RoomsWriteTest < ActiveSupport::TestCase
         name: "Created Write Room",
         description: "Created description.",
         capacity: 4,
-        image_key: "kitchen",
+        image_choice: "bundled:kitchen",
         seed_key: "ignored-seed"
       )
     )
@@ -39,18 +49,19 @@ class RoomsWriteTest < ActiveSupport::TestCase
     assert_equal "Created description.", room.description
     assert_equal 4, room.capacity
     assert_equal "kitchen", room.image_key
+    assert_nil room.image_blob_id
     assert_nil room.seed_key
   end
 
   test "rejects invalid create attributes without a row" do
     result = write(
       action: :create,
-      attributes: room_attributes(name: "", capacity: 0, image_key: "not-a-key")
+      attributes: room_attributes(name: "", capacity: 0, image_choice: "bundled:not-a-key")
     )
 
     refute result[:ok]
     assert_equal :invalid_input, result[:code]
-    assert result[:messages].any?
+    assert_includes result[:messages], "Select a valid room image."
     assert_equal 0, Room.where(name: "").count
   end
 
@@ -74,7 +85,7 @@ class RoomsWriteTest < ActiveSupport::TestCase
         name: "Edited Write Room",
         description: "Edited description.",
         capacity: 4,
-        image_key: "attic",
+        image_choice: "bundled:attic",
         seed_key: "ignored-seed"
       }
     )
@@ -85,6 +96,7 @@ class RoomsWriteTest < ActiveSupport::TestCase
     assert_equal "Edited description.", room.description
     assert_equal 4, room.capacity
     assert_equal "attic", room.image_key
+    assert_nil room.image_blob_id
     assert_equal "keep-seed", room.seed_key
   end
 
@@ -98,6 +110,7 @@ class RoomsWriteTest < ActiveSupport::TestCase
     room.reload
     assert_equal "Validated Write Room", room.name
     assert_equal 3, room.capacity
+    assert_equal "basement", room.image_key
   end
 
   test "returns not_found for missing update and destroy ids" do
@@ -172,7 +185,8 @@ class RoomsWriteTest < ActiveSupport::TestCase
         name: "Strong Params Write Room",
         description: "Strong parameters description.",
         capacity: 2,
-        image_key: "basement",
+        image_choice: "bundled:basement",
+        image_key: "attic",
         seed_key: "ignored-seed"
       }
     )
@@ -183,6 +197,7 @@ class RoomsWriteTest < ActiveSupport::TestCase
     room = track(result[:record])
     assert_equal "Strong Params Write Room", room.name
     assert_equal 2, room.capacity
+    assert_equal "basement", room.image_key
     assert_nil room.seed_key
   end
 
@@ -337,10 +352,129 @@ class RoomsWriteTest < ActiveSupport::TestCase
     end
   end
 
+  test "creates a room with an uploaded catalog image and clears the bundled key" do
+    blob = uploaded_blob
+
+    result = write(action: :create, attributes: room_attributes(image_choice: "upload:#{blob.id}"))
+
+    assert result[:ok]
+    room = track(result[:record])
+    assert_nil room.image_key
+    assert_equal blob.id, room.image_blob_id
+    assert RoomImages.uploads.where(id: blob.id).exists?
+  end
+
+  test "switches between uploaded and bundled references without purging the blob" do
+    blob = uploaded_blob
+    created = write(action: :create, attributes: room_attributes(image_choice: "upload:#{blob.id}"))
+    room = track(created[:record])
+
+    bundled = nil
+    assert_no_enqueued_jobs only: [ ActiveStorage::PurgeJob, ActiveRecord::DestroyAssociationAsyncJob ] do
+      bundled = write(action: :update, id: room.id, attributes: { image_choice: "bundled:attic" })
+    end
+
+    assert bundled[:ok]
+    room.reload
+    assert_equal "attic", room.image_key
+    assert_nil room.image_blob_id
+    assert ActiveStorage::Blob.exists?(blob.id)
+    assert blob.service.exist?(blob.key)
+
+    reused = nil
+    assert_no_enqueued_jobs only: [ ActiveStorage::PurgeJob, ActiveRecord::DestroyAssociationAsyncJob ] do
+      reused = write(action: :update, id: room.id, attributes: { image_choice: "upload:#{blob.id}" })
+    end
+
+    assert reused[:ok]
+    room.reload
+    assert_nil room.image_key
+    assert_equal blob.id, room.image_blob_id
+  end
+
+  test "keeps an uploaded blob when its last room is deleted" do
+    blob = uploaded_blob
+    created = write(action: :create, attributes: room_attributes(image_choice: "upload:#{blob.id}"))
+    room = track(created[:record])
+
+    result = nil
+    assert_no_enqueued_jobs only: [ ActiveStorage::PurgeJob, ActiveRecord::DestroyAssociationAsyncJob ] do
+      result = write(action: :destroy, id: room.id)
+    end
+
+    assert result[:ok]
+    refute Room.exists?(room.id)
+    assert ActiveStorage::Blob.exists?(blob.id)
+    assert blob.service.exist?(blob.key)
+    assert RoomImages.uploads.where(id: blob.id).exists?
+  end
+
+  test "preserves the image reference when an update omits the choice" do
+    room = commit_room!(name: "Omitted Choice Write Room", capacity: 2, image_key: "kitchen")
+
+    result = write(action: :update, id: room.id, attributes: { capacity: 4 })
+
+    assert result[:ok]
+    room.reload
+    assert_equal 4, room.capacity
+    assert_equal "kitchen", room.image_key
+    assert_nil room.image_blob_id
+  end
+
+  test "requires an image choice when creating a room" do
+    before_count = Room.count
+
+    result = write(action: :create, attributes: room_attributes.except(:image_choice))
+
+    refute result[:ok]
+    assert_equal :invalid_input, result[:code]
+    assert_includes result[:messages], "Select exactly one room image."
+    assert_equal before_count, Room.count
+  end
+
+  test "rejects malformed and unknown image choices without changing the room" do
+    room = commit_room!(name: "Choice Write Room", image_key: "basement")
+    choices = [ "bundled:unknown", "upload:999999", "upload:abc", "nonsense", "bundled:", "upload:", "" ]
+
+    choices.each do |choice|
+      result = write(action: :update, id: room.id, attributes: { image_choice: choice })
+
+      refute result[:ok], "expected update with #{choice.inspect} to be rejected"
+      assert_equal :invalid_input, result[:code], "expected invalid_input for #{choice.inspect}"
+      assert_includes result[:messages], "Select a valid room image."
+    end
+
+    room.reload
+    assert_equal "basement", room.image_key
+    assert_nil room.image_blob_id
+
+    before_count = Room.count
+    choices.each do |choice|
+      result = write(action: :create, attributes: room_attributes(image_choice: choice))
+
+      refute result[:ok], "expected create with #{choice.inspect} to be rejected"
+      assert_equal :invalid_input, result[:code], "expected invalid_input for #{choice.inspect}"
+    end
+    assert_equal before_count, Room.count
+  end
+
   private
 
   def write(action:, id: nil, attributes: {})
     Rooms::Write.call(action: action, id: id, attributes: attributes)
+  end
+
+  def uploaded_blob(content_type: "image/png", bytes: nil, filename: "room.png")
+    bytes ||= File.binread(Rails.root.join("test/fixtures/files/room.png"))
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: StringIO.new(bytes),
+      filename: filename,
+      content_type: content_type,
+      service_name: "room_images",
+      identify: false
+    )
+    @uploaded_blobs << blob
+    blob
   end
 
   def room_attributes(overrides = {})
@@ -350,7 +484,7 @@ class RoomsWriteTest < ActiveSupport::TestCase
       name: "Write Room #{@write_room_sequence}",
       description: "A room used for room write tests.",
       capacity: 3,
-      image_key: "basement"
+      image_choice: "bundled:basement"
     }.merge(overrides)
   end
 

@@ -23,15 +23,16 @@ module Admin
 
     def create
       @mode = :new
-      result = Rooms::Write.call(action: :create, attributes: room_params)
+      attributes = room_params
+      result = Rooms::Write.call(action: :create, attributes: attributes)
 
       if result[:ok]
         redirect_to admin_room_path(result[:record]), status: :see_other,
           notice: "Room was successfully created."
       else
-        attributes = room_params
-        @room = Room.new(attributes.except(:capacity))
+        @room = Room.new(attributes.except(:capacity, :image_choice))
         @submitted_capacity = attributes[:capacity]
+        @submitted_image_choice = attributes[:image_choice]
         render_failure(result, :new)
       end
     end
@@ -43,15 +44,16 @@ module Admin
 
     def update
       @mode = :edit
-      result = Rooms::Write.call(action: :update, id: @room.id, attributes: room_params)
+      attributes = room_params
+      result = Rooms::Write.call(action: :update, id: @room.id, attributes: attributes)
 
       if result[:ok]
         redirect_to admin_room_path(result[:record]), status: :see_other,
           notice: "Room was successfully updated."
       else
-        attributes = room_params
-        @room.assign_attributes(attributes.except(:capacity))
+        @room.assign_attributes(attributes.except(:capacity, :image_choice))
         @submitted_capacity = attributes[:capacity]
+        @submitted_image_choice = attributes[:image_choice]
         render_failure(result, :edit)
       end
     end
@@ -85,7 +87,7 @@ module Admin
     end
 
     def room_params
-      params.require(:room).permit(:name, :description, :capacity, :image_key)
+      params.require(:room).permit(:name, :description, :capacity, :image_choice)
     end
 
     def render_workspace(status: :ok)

@@ -335,6 +335,33 @@ nav a {
   font: inherit;
 }
 
+.admin-image-upload {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #d9c7b4;
+}
+
+.admin-image-upload-form {
+  display: grid;
+  gap: 1rem;
+  max-width: 36rem;
+}
+
+.admin-image-upload-form .field {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.admin-image-upload-form input {
+  width: 100%;
+  padding: 0.55rem;
+  border: 1px solid #6b5a5a;
+  border-radius: 0.35rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
 @media (max-width: 720px) {
   .admin-rooms-panel {
     grid-template-columns: 1fr;

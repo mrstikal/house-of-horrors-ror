@@ -16,6 +16,15 @@
     - when :index
       %h2 Manage rooms
       %p Select a room to view its details, or create a new one.
+      %section.admin-image-upload{ "aria-label": "Upload room image" }
+        %h3 Upload image
+        %p Upload a PNG or JPEG (max 2 MiB), then select it when creating or editing a room.
+        = form_with url: admin_room_images_path, method: :post, local: true, multipart: true,
+          html: { class: "admin-image-upload-form" } do |form|
+          .field
+            = form.label :image, "Image file"
+            = form.file_field :image, accept: "image/png,image/jpeg", required: true
+          = form.submit "Upload image", class: "admin-button"
     - when :show
       %h2= @room.name
       %img.admin-room-image{src: room_image_url(@room), alt: @room.name}

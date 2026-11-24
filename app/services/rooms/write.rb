@@ -1,10 +1,11 @@
 module Rooms
   class Write
-    ALLOWED_ATTRIBUTES = %i[name description capacity image_key].freeze
+    ALLOWED_ATTRIBUTES = %i[name description capacity image_choice].freeze
     NOT_FOUND_MESSAGE = "Room not found."
     ROOM_HAS_RESERVATIONS_MESSAGE = "Delete this room's reservations before deleting the room."
     BUSY_MESSAGE = "The booking system is busy. Try again."
     DUPLICATE_NAME_MESSAGE = "Name has already been taken."
+    INVALID_IMAGE_MESSAGE = "Select a valid room image."
 
     def self.call(action:, id: nil, attributes: {})
       new.call(action: action, id: id, attributes: attributes)
@@ -27,7 +28,9 @@ module Rooms
 
     def create(attributes)
       guarded do
-        room = Room.new(room_attributes(attributes))
+        values = room_attributes(attributes)
+        room = Room.new(room_fields(values))
+        next failure(:invalid_input, [ INVALID_IMAGE_MESSAGE ]) unless apply_image_choice(room, values)
 
         unless room.valid?
           next failure(:invalid_input, room.errors.full_messages)
@@ -43,7 +46,9 @@ module Rooms
         room = Room.find_by(id: id)
         next failure(:not_found, [ NOT_FOUND_MESSAGE ]) unless room
 
-        room.assign_attributes(room_attributes(attributes))
+        values = room_attributes(attributes)
+        room.assign_attributes(room_fields(values))
+        next failure(:invalid_input, [ INVALID_IMAGE_MESSAGE ]) unless apply_image_choice(room, values)
 
         unless room.valid?
           next failure(:invalid_input, room.errors.full_messages)
@@ -91,6 +96,39 @@ module Rooms
       values = attributes.respond_to?(:permit) ? attributes.permit(*ALLOWED_ATTRIBUTES) : (attributes || {})
 
       values.to_h.symbolize_keys.slice(*ALLOWED_ATTRIBUTES)
+    end
+
+    def room_fields(values)
+      values.slice(:name, :description, :capacity)
+    end
+
+    def apply_image_choice(room, values)
+      return true unless values.key?(:image_choice)
+
+      choice = values[:image_choice]
+      return false unless choice.is_a?(String)
+
+      kind, value = choice.split(":", 2)
+      return false if value.blank?
+
+      case kind
+      when "bundled"
+        return false unless RoomImages.keys.include?(value)
+
+        room.image_key = value
+        room.image_blob_id = nil
+      when "upload"
+        blob_id = BookingSlots.parse_id(value)
+        blob = blob_id && RoomImages.uploads.find_by(id: blob_id)
+        return false unless blob
+
+        room.image_key = nil
+        room.image_blob_id = blob.id
+      else
+        return false
+      end
+
+      true
     end
 
     def success(record)
