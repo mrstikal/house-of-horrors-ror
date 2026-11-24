@@ -9,7 +9,8 @@
     = stylesheet_link_tag "application"
   %body
     %nav{ "aria-label": "Primary" }
-      = link_to "Homepage", root_path
-      %span{ "aria-hidden": "true" } |
-      = link_to "Admin", admin_path
+      %div.nav-wrapper
+        = link_to "Homepage", root_path
+        %span{ "aria-hidden": "true" } |
+        = link_to "Admin", admin_path
     = yield
