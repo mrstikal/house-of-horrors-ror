@@ -1,13 +1,14 @@
 !!!
 %html{ lang: "en" }
   %head
+    %meta{ charset: "utf-8" }
     %title= content_for(:title) || "House of Horrors"
     %meta{ name: "viewport", content: "width=device-width,initial-scale=1" }
     = csrf_meta_tags
     = yield :head
     = stylesheet_link_tag "application"
   %body
-    %nav
+    %nav{ "aria-label": "Primary" }
       = link_to "Homepage", root_path
       %span{ "aria-hidden": "true" } |
       = link_to "Admin", admin_path

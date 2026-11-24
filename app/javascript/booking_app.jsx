@@ -51,12 +51,21 @@ export function BookingApp({
   );
 
   useEffect(() => {
-    if (!effectiveRoomId || !date || !availabilityPath) {
+    if (!effectiveRoomId || !date) {
       generationRef.current += 1;
       setSlots([]);
       setSelectedHour("");
       setStatus("idle");
       setAvailabilityError(null);
+      return undefined;
+    }
+
+    if (!availabilityPath) {
+      generationRef.current += 1;
+      setSlots([]);
+      setSelectedHour("");
+      setStatus("error");
+      setAvailabilityError(GENERIC_AVAILABILITY_ERROR);
       return undefined;
     }
 

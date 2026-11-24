@@ -339,6 +339,15 @@ describe("BookingApp", () => {
     expect(fetchMock.mock.calls[0][0]).toBe(`${AVAILABILITY_PATH}?room_id=1&date=${TODAY}`);
   });
 
+  it("shows an error instead of an empty state when availability is not configured", () => {
+    const fetchMock = vi.fn();
+    renderApp(fetchMock, { availabilityPath: undefined });
+
+    expect(screen.getByRole("alert").textContent).toBe("Availability could not be loaded. Try again.");
+    expect(screen.queryByText("No available slots for this room and date.")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("keeps submission disabled until a currently offered hour is selected", async () => {
     const fetchMock = vi.fn().mockResolvedValue(availability(1, TODAY, [ slot(1, 2) ]));
     renderApp(fetchMock);

@@ -131,7 +131,7 @@ class PublicBookingApiTest < ActionDispatch::IntegrationTest
     body = response.parsed_body
     start_at, end_at = BookingSlots.interval(future_date, 1)
 
-    assert_equal room.id, body.dig("reservation", "room_id")
+    assert_equal room.id.to_s, body.dig("reservation", "room_id")
     assert_equal start_at.iso8601, body.dig("reservation", "start_datetime")
     assert_equal end_at.iso8601, body.dig("reservation", "end_datetime")
     record = Reservation.find(body.dig("reservation", "id"))
@@ -179,7 +179,7 @@ class PublicBookingApiTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     body = response.parsed_body
-    assert_equal room.id, body.dig("reservation", "room_id")
+    assert_equal room.id.to_s, body.dig("reservation", "room_id")
     assert_equal BookingSlots.interval(future_date, 2).first.iso8601,
       body.dig("reservation", "start_datetime")
     refute Reservation.exists?(room_id: other.id)

@@ -43,6 +43,22 @@ class AdminAuthTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Invalid email or password."
   end
 
+  test "renders the login form and error for a failed login while an admin session is active" do
+    sign_in(@admin)
+    assert_response :see_other
+
+    sign_in(@admin, password: "wrong password")
+
+    assert_response :unprocessable_entity
+    assert_includes response.body, "Invalid email or password."
+    assert_select "form[action=?]", admin_session_path
+    assert_select "input[name=?]", "session[email_address]"
+
+    get admin_path
+    assert_response :see_other
+    assert_equal admin_rooms_path, URI.parse(response.location).path
+  end
+
   test "signs in an admin with a normalized email and shows the dashboard" do
     sign_in(@admin, email_address: " ADMIN@Example.Test ")
 

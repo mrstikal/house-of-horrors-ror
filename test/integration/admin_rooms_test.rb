@@ -34,7 +34,12 @@ class AdminRoomsTest < ActionDispatch::IntegrationTest
 
     get admin_rooms_path
     assert_response :success
-    assert_select "nav a[aria-current='page']", text: "Rooms"
+    assert_select "html[lang='en']", count: 1
+    assert_select "head", count: 1
+    assert_select "meta[charset='utf-8']"
+    assert_select "nav[aria-label='Primary'] a", text: "Homepage"
+    assert_select "nav[aria-label='Primary'] a", text: "Admin"
+    assert_select "nav[aria-label='Administration'] a[aria-current='page']", text: "Rooms"
     assert_select "form[action=?] button", admin_session_path, text: "Log out"
     assert_select ".admin-rooms-list a", text: "Visible Admin Room"
 

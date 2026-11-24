@@ -19,7 +19,7 @@ module Api
         render json: {
           reservation: {
             id: record.id,
-            room_id: record.room_id,
+            room_id: record.room_id.to_s,
             start_datetime: record.start_datetime.utc.iso8601,
             end_datetime: record.end_datetime.utc.iso8601
           }

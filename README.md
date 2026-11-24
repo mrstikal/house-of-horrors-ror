@@ -30,7 +30,7 @@ The four room JPEGs and the house header are bundled Propshaft assets, not uploa
 
 ### Administration
 
-`/admin` is the whole Administration entry point, including its login form. The public page and the Administration login share the `Homepage | Admin` navigation; authenticated resource pages use the workspace header with Rooms and Reservations. One successful sign-in unlocks both tabs, and all Administration resource URLs render the same dashboard. Protected resource routes return 403 before record lookup without a valid admin session. Forms use Rails CSRF tokens and strong parameters. The public JSON POST uses the Rails CSRF meta token, same-origin credentials, and JSON headers.
+`/admin` is the whole Administration entry point, including its login form. Every page uses the shared `Homepage | Admin` navigation; authenticated Administration pages add the workspace header with Rooms and Reservations. One successful sign-in unlocks both tabs, and all Administration resource URLs render the same dashboard. Protected resource routes return 403 before record lookup without a valid admin session. Admin sessions are bound to the configured database identity, so a cookie issued for one database does not authorize the same user id in another. Forms use Rails CSRF tokens and strong parameters. The public JSON POST uses the Rails CSRF meta token, same-origin credentials, and JSON headers.
 
 ### Deliberately out of scope
 
