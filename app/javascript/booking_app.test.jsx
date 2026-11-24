@@ -1,8 +1,23 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within
+} from "@testing-library/react";
 import { BookingApp } from "./booking_app";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+const TODAY = "2026-11-24";
+const AVAILABILITY_PATH = "/api/availability";
 
 const rooms = [
   {
@@ -21,9 +36,54 @@ const rooms = [
   }
 ];
 
+function slot(hour, remaining, nearlyFull = false) {
+  const start = String(hour).padStart(2, "0");
+  const finish = String(hour + 1).padStart(2, "0");
+
+  return {
+    start_hour: hour,
+    start_datetime: `2026-11-24T${start}:00:00Z`,
+    end_datetime: `2026-11-24T${finish}:00:00Z`,
+    label: `${start}:00-${finish}:00 UTC`,
+    remaining,
+    nearly_full: nearlyFull
+  };
+}
+
+function jsonResponse(payload) {
+  return { ok: true, json: async () => payload };
+}
+
+function availability(roomId, date, slots) {
+  return jsonResponse({ room_id: roomId, date, slots });
+}
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((resolver) => {
+    resolve = resolver;
+  });
+
+  return { promise, resolve };
+}
+
+function renderApp(fetchMock, props = {}) {
+  vi.stubGlobal("fetch", fetchMock);
+
+  return render(
+    <BookingApp
+      rooms={rooms}
+      today={TODAY}
+      availabilityPath={AVAILABILITY_PATH}
+      {...props}
+    />
+  );
+}
+
 describe("BookingApp", () => {
   it("shows the first room and switches the preview", () => {
-    render(<BookingApp rooms={rooms} />);
+    const fetchMock = vi.fn();
+    renderApp(fetchMock, { today: "" });
 
     expect(screen.getByLabelText("Room")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "The Basement" })).toBeTruthy();
@@ -38,13 +98,21 @@ describe("BookingApp", () => {
     expect(screen.getByText("Capacity: 1")).toBeTruthy();
     expect(screen.getByRole("img", { name: "The Bathroom" }).getAttribute("src")).toBe(rooms[1].image_url);
     expect(document.querySelector("script")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("falls back to the first room when the selected room disappears", () => {
-    const { rerender } = render(<BookingApp rooms={rooms} />);
+    const fetchMock = vi.fn();
+    const { rerender } = renderApp(fetchMock, { today: "" });
 
     fireEvent.change(screen.getByLabelText("Room"), { target: { value: "2" } });
-    rerender(<BookingApp rooms={[ rooms[0] ]} />);
+    rerender(
+      <BookingApp
+        rooms={[ rooms[0] ]}
+        today=""
+        availabilityPath={AVAILABILITY_PATH}
+      />
+    );
 
     expect(screen.getByLabelText("Room").value).toBe("1");
     expect(screen.getByRole("heading", { name: "The Basement" })).toBeTruthy();
@@ -52,9 +120,165 @@ describe("BookingApp", () => {
   });
 
   it("shows a message when there are no rooms", () => {
-    render(<BookingApp rooms={[]} />);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<BookingApp rooms={[]} today={TODAY} availabilityPath={AVAILABILITY_PATH} />);
 
     expect(screen.getByText("No rooms are available right now.")).toBeTruthy();
     expect(screen.queryByLabelText("Room")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("fetches the first room for server today and leaves the slot unselected", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      availability(1, TODAY, [ slot(1, 2), slot(2, 1, true) ])
+    );
+    renderApp(fetchMock);
+
+    expect(screen.getByLabelText("Date").value).toBe(TODAY);
+    expect(screen.getByLabelText("Date").min).toBe(TODAY);
+    expect(screen.getByLabelText("Start time").value).toBe("");
+
+    const option = await screen.findByRole("option", { name: /01:00-02:00 UTC/ });
+
+    expect(option.textContent).toContain("2 places left");
+    expect(screen.getByLabelText("Start time").value).toBe("");
+    expect(screen.queryByText("Only 1 place left!")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [ url, options ] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${AVAILABILITY_PATH}?room_id=1&date=${TODAY}`);
+    expect(options.credentials).toBe("same-origin");
+    expect(options.headers).toEqual({ Accept: "application/json" });
+  });
+
+  it("shows the warning only for a selected nearly-full slot", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      availability(1, TODAY, [ slot(1, 1, true), slot(2, 1, false) ])
+    );
+    renderApp(fetchMock);
+
+    const slotSelect = await screen.findByLabelText("Start time");
+    await waitFor(() => expect(within(slotSelect).getByRole("option", { name: /01:00-02:00 UTC/ })).toBeTruthy());
+
+    fireEvent.change(slotSelect, { target: { value: "1" } });
+    expect(screen.getByText("Only 1 place left!")).toBeTruthy();
+
+    const singlePlace = within(slotSelect).getByRole("option", { name: /01:00-02:00 UTC/ });
+    expect(singlePlace.textContent).toContain("1 place left");
+    expect(singlePlace.textContent).not.toContain("1 places left");
+
+    fireEvent.change(slotSelect, { target: { value: "2" } });
+    expect(screen.queryByText("Only 1 place left!")).toBeNull();
+  });
+
+  it("rejects a current payload whose room or date does not match the request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      availability(999, TODAY, [ slot(1, 2) ])
+    );
+    renderApp(fetchMock);
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Availability could not be loaded. Try again.");
+    expect(screen.queryByRole("option", { name: /01:00-02:00 UTC/ })).toBeNull();
+    expect(screen.getByLabelText("Start time").value).toBe("");
+  });
+
+  it("clears the selection and old slots when room or date changes", async () => {
+    const fetchMock = vi.fn((url) => {
+      const parsed = new URL(url, "http://localhost");
+      const roomId = Number(parsed.searchParams.get("room_id"));
+      const date = parsed.searchParams.get("date");
+
+      return Promise.resolve(availability(roomId, date, [ slot(roomId === 1 ? 1 : 2, 2) ]));
+    });
+    renderApp(fetchMock);
+
+    const slotSelect = await screen.findByLabelText("Start time");
+    await waitFor(() => expect(within(slotSelect).getByRole("option", { name: /01:00-02:00 UTC/ })).toBeTruthy());
+    fireEvent.change(slotSelect, { target: { value: "1" } });
+    expect(slotSelect.value).toBe("1");
+
+    fireEvent.change(screen.getByLabelText("Room"), { target: { value: "2" } });
+
+    expect(screen.getByLabelText("Start time").value).toBe("");
+    expect(within(screen.getByLabelText("Start time")).queryByRole("option", { name: /01:00-02:00 UTC/ })).toBeNull();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(fetchMock.mock.calls[1][0]).toBe(`${AVAILABILITY_PATH}?room_id=2&date=${TODAY}`);
+
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-11-25" } });
+
+    expect(screen.getByLabelText("Start time").value).toBe("");
+    expect(within(screen.getByLabelText("Start time")).queryByRole("option", { name: /02:00-03:00 UTC/ })).toBeNull();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(fetchMock.mock.calls[2][0]).toBe(`${AVAILABILITY_PATH}?room_id=2&date=2026-11-25`);
+  });
+
+  it("ignores a late response from a superseded request", async () => {
+    const first = deferred();
+    const second = deferred();
+    const fetchMock = vi.fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    renderApp(fetchMock);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const firstSignal = fetchMock.mock.calls[0][1].signal;
+
+    fireEvent.change(screen.getByLabelText("Room"), { target: { value: "2" } });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(firstSignal.aborted).toBe(true);
+
+    await act(async () => {
+      second.resolve(availability(2, TODAY, [ slot(2, 4) ]));
+      await Promise.resolve();
+    });
+    expect(await screen.findByRole("option", { name: /02:00-03:00 UTC/ })).toBeTruthy();
+
+    await act(async () => {
+      first.resolve(availability(1, TODAY, [ slot(1, 9) ]));
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByRole("option", { name: /01:00-02:00 UTC/ })).toBeNull();
+    expect(screen.getByRole("option", { name: /02:00-03:00 UTC/ })).toBeTruthy();
+  });
+
+  it("shows loading, empty and error states without stale options", async () => {
+    const pending = deferred();
+    const fetchMock = vi.fn()
+      .mockReturnValueOnce(pending.promise)
+      .mockRejectedValueOnce(new Error("network"));
+    renderApp(fetchMock);
+
+    expect(screen.getByText("Loading available slots…")).toBeTruthy();
+
+    await act(async () => {
+      pending.resolve(availability(1, TODAY, []));
+      await Promise.resolve();
+    });
+    expect(await screen.findByText("No available slots for this room and date.")).toBeTruthy();
+    expect(screen.getByLabelText("Start time").value).toBe("");
+    expect(within(screen.getByLabelText("Start time")).queryAllByRole("option")).toHaveLength(1);
+
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-11-25" } });
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Availability could not be loaded. Try again.");
+    expect(screen.getByLabelText("Start time").value).toBe("");
+    expect(within(screen.getByLabelText("Start time")).queryAllByRole("option")).toHaveLength(1);
+  });
+
+  it("does not fetch until both room and date are present", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(availability(1, TODAY, []));
+    renderApp(fetchMock, { today: "" });
+
+    expect(screen.getByText("Select a room and date to see available times.")).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: TODAY } });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[0][0]).toBe(`${AVAILABILITY_PATH}?room_id=1&date=${TODAY}`);
   });
 });

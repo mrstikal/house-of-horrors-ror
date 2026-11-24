@@ -72,7 +72,8 @@ nav a {
   font-weight: 600;
 }
 
-.booking-controls select {
+.booking-controls select,
+.booking-controls input[type="date"] {
   width: 100%;
   padding: 0.6rem;
   border: 1px solid #6b5a5a;
@@ -80,6 +81,22 @@ nav a {
   background: #fff;
   color: inherit;
   font: inherit;
+}
+
+.booking-status,
+.booking-error {
+  margin: 1rem 0 0;
+}
+
+.booking-error {
+  color: #8a1c1c;
+  font-weight: 600;
+}
+
+.slot-warning {
+  margin: 1rem 0 0;
+  color: #8a1c1c;
+  font-weight: 700;
 }
 
 .room-preview {
