@@ -14,9 +14,14 @@
       = button_to "Log out", admin_session_path, method: :delete, class: "admin-button admin-button-secondary"
     %nav.admin-workspace-nav{ "aria-label": "Administration" }
       = link_to "Rooms", admin_rooms_path, "aria-current": (@active_tab == :rooms ? "page" : nil)
+      = link_to "Reservations", admin_reservations_path,
+        "aria-current": (@active_tab == :reservations ? "page" : nil)
     %main.admin-workspace
       - if flash[:notice].present?
         %p.admin-notice{role: "status"}= flash[:notice]
       - if flash[:alert].present?
         %p.admin-error{role: "alert"}= flash[:alert]
-      = render "admin/rooms/panel"
+      - if @active_tab == :reservations
+        = render "admin/reservations/panel"
+      - else
+        = render "admin/rooms/panel"

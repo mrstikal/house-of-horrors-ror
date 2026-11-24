@@ -345,3 +345,56 @@ nav a {
     align-items: flex-start;
   }
 }
+
+.admin-reservations-panel {
+  max-width: 72rem;
+}
+
+.admin-filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.admin-filter-form .field {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 12rem;
+}
+
+.admin-filter-form input,
+.admin-filter-form select {
+  width: 100%;
+  padding: 0.55rem;
+  border: 1px solid #6b5a5a;
+  border-radius: 0.35rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-reservations-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-reservations-table th,
+.admin-reservations-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid #d8c8b8;
+  text-align: left;
+}
+
+.admin-reservations-table th {
+  background: #f0e6d8;
+}
+
+.admin-status {
+  margin: 1rem 0 0;
+}

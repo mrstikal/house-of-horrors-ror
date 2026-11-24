@@ -1,0 +1,46 @@
+.admin-reservations-panel
+  - if @mode == :show
+    %h2= "Reservation ##{@reservation.id}"
+    %dl.admin-room-facts
+      %dt Room
+      %dd= link_to @reservation.room.name, admin_room_path(@reservation.room)
+      %dt Start (UTC)
+      %dd= @reservation.start_datetime.utc.iso8601
+      %dt End (UTC)
+      %dd= @reservation.end_datetime.utc.iso8601
+      %dt Reservation
+      %dd= @reservation.id
+    %p= link_to "Back to reservations", admin_reservations_path, class: "admin-button admin-button-secondary"
+  - else
+    %h2 Reservations
+    - room_choices = @rooms.map { |room| [ room.name, room.id ] }
+    - if @submitted_room_id.present? && @rooms.none? { |room| room.id.to_s == @submitted_room_id }
+      - room_choices.unshift([ "Unsupported: #{@submitted_room_id}", @submitted_room_id ])
+
+    = form_with url: admin_reservations_path, method: :get, local: true, html: { class: "admin-filter-form" } do |form|
+      .field
+        = form.label :room_id, "Room"
+        = form.select :room_id, room_choices, include_blank: "All rooms", selected: @submitted_room_id
+      .field
+        = form.label :date, "UTC date"
+        = form.date_field :date, value: @submitted_date
+      = form.submit "Filter", class: "admin-button"
+
+    - if @invalid_filters
+      %p.admin-status No reservations are shown until the filters are corrected.
+    - elsif @reservations.any?
+      .admin-table-wrap
+        %table.admin-reservations-table
+          %thead
+            %tr
+              %th UTC start
+              %th Room
+              %th Reservation
+          %tbody
+            - @reservations.each do |reservation|
+              %tr
+                %td= reservation.start_datetime.utc.strftime("%Y-%m-%d %H:%M UTC")
+                %td= reservation.room.name
+                %td= link_to reservation.id, admin_reservation_path(reservation)
+    - else
+      %p.admin-status No reservations match these filters.

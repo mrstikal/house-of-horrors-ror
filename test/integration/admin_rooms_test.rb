@@ -47,6 +47,7 @@ class AdminRoomsTest < ActionDispatch::IntegrationTest
     assert_select ".admin-room-facts dd", text: "1"
     assert_select "[aria-current='page']", count: 1
     assert_select ".admin-room-actions form[action=?]", admin_room_path(room)
+    assert_select "a[href=?]", admin_reservations_path(room_id: room.id), text: "View bookings"
 
     get new_admin_room_path
     assert_response :success
