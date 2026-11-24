@@ -1,16 +1,108 @@
-/*
- * This is a manifest file that'll be compiled into application.css.
- *
- * With Propshaft, assets are served efficiently without preprocessing steps. You can still include
- * application-wide styles in this file, but keep in mind that CSS precedence will follow the standard
- * cascading order, meaning styles declared later in the document or manifest will override earlier ones,
- * depending on specificity.
- *
- * Consider organizing styles into separate files for maintainability.
- */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: #1f1a1a;
+  background: #faf7f2;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+
+a {
+  color: #7a1f1f;
+}
+
+a:focus-visible,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 3px solid #b23b3b;
+  outline-offset: 2px;
+}
+
+nav {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #241b1b;
+}
+
+nav a {
+  color: #fff4e8;
+}
+
+.home-header {
+  padding: 1rem;
+  text-align: center;
+}
+
+.home-header h1 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+}
 
 .home-header img {
   display: block;
+  width: 100%;
   max-width: 100%;
   height: auto;
+  margin: 0 auto;
+  border-radius: 0.5rem;
+}
+
+.booking {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.booking h2 {
+  margin-top: 0;
+}
+
+.booking-controls {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 24rem;
+}
+
+.booking-controls label {
+  font-weight: 600;
+}
+
+.booking-controls select {
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid #6b5a5a;
+  border-radius: 0.35rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+.room-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 1.5rem;
+  align-items: start;
+  margin-top: 1.5rem;
+}
+
+.room-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+}
+
+.room-preview h3 {
+  margin-top: 0;
+}
+
+@media (max-width: 640px) {
+  .room-preview {
+    grid-template-columns: 1fr;
+  }
 }
