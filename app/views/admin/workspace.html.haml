@@ -1,0 +1,22 @@
+!!! 5
+%html{lang: "en"}
+  %head
+    %meta{charset: "utf-8"}
+    %meta{name: "viewport", content: "width=device-width, initial-scale=1"}
+    %title Administration | House of Horrors
+    = csrf_meta_tags
+    = stylesheet_link_tag "application"
+  %body
+    %header.admin-workspace-header
+      %div
+        %h1 Administration
+        %p.admin-session Signed in as #{current_admin.email_address}.
+      = button_to "Log out", admin_session_path, method: :delete, class: "admin-button admin-button-secondary"
+    %nav.admin-workspace-nav{ "aria-label": "Administration" }
+      = link_to "Rooms", admin_rooms_path, "aria-current": (@active_tab == :rooms ? "page" : nil)
+    %main.admin-workspace
+      - if flash[:notice].present?
+        %p.admin-notice{role: "status"}= flash[:notice]
+      - if flash[:alert].present?
+        %p.admin-error{role: "alert"}= flash[:alert]
+      = render "admin/rooms/panel"

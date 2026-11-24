@@ -1,0 +1,21 @@
+- image_choices = RoomImages.keys.map { |key| [ key.capitalize, key ] }
+- if @room.image_key.present? && RoomImages.keys.exclude?(@room.image_key)
+  - image_choices.unshift([ "Unsupported: #{@room.image_key}", @room.image_key ])
+
+= form_with model: [ :admin, @room ], local: true, html: { class: "admin-room-form" } do |form|
+  .field
+    = form.label :name
+    = form.text_field :name, required: true
+  .field
+    = form.label :description
+    = form.text_area :description, required: true
+  .field
+    = form.label :capacity
+    = form.number_field :capacity, value: @submitted_capacity || @room.capacity,
+      min: 1, step: 1, required: true
+  .field
+    = form.label :image_key, "Image"
+    = form.select :image_key, image_choices
+  .admin-room-actions
+    = form.submit(@mode == :new ? "Create room" : "Update room", class: "admin-button")
+    = link_to "Cancel", admin_rooms_path, class: "admin-button admin-button-secondary"

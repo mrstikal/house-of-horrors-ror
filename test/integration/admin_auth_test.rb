@@ -50,8 +50,13 @@ class AdminAuthTest < ActionDispatch::IntegrationTest
     assert_equal admin_path, URI.parse(response.location).path
 
     get admin_path
+    assert_response :see_other
+    assert_equal admin_rooms_path, URI.parse(response.location).path
+
+    follow_redirect!
     assert_response :success
     assert_includes response.body, @admin.email_address
+    assert_select "nav a[aria-current='page']", text: "Rooms"
     assert_select "form[action=?] input[name=?][value=?]", admin_session_path, "_method", "delete"
     assert_select "form[action=?] button", admin_session_path, text: "Log out"
   end

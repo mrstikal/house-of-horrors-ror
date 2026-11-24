@@ -1,0 +1,34 @@
+.admin-rooms-panel
+  %section.admin-rooms-list{ "aria-label": "Rooms" }
+    .admin-panel-header
+      %h2 Rooms
+      = link_to "New room", new_admin_room_path, class: "admin-button"
+    - if @rooms.any?
+      %ul
+        - @rooms.each do |room|
+          %li
+            = link_to room.name, admin_room_path(room), "aria-current": (@room && @room.id == room.id ? "true" : nil)
+    - else
+      %p No rooms yet.
+
+  %section.admin-rooms-content
+    - case @mode
+    - when :index
+      %h2 Manage rooms
+      %p Select a room to view its details, or create a new one.
+    - when :show
+      %h2= @room.name
+      %img.admin-room-image{src: room_image_url(@room), alt: @room.name}
+      %p= @room.description
+      %dl.admin-room-facts
+        %dt Capacity
+        %dd= @room.capacity
+        %dt Reservations
+        %dd= @reservation_counts.fetch(@room.id, 0)
+      .admin-room-actions
+        = link_to "Edit", edit_admin_room_path(@room), class: "admin-button"
+        = button_to "Delete", admin_room_path(@room), method: :delete,
+          class: "admin-button admin-button-secondary"
+    - when :new, :edit
+      %h2= @mode == :new ? "New room" : "Edit #{@room.name}"
+      = render "admin/rooms/form"

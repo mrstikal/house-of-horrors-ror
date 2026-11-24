@@ -13,5 +13,6 @@ Rails.application.routes.draw do
 
   namespace :admin do
     resource :session, only: [ :create, :destroy ], controller: "sessions"
+    resources :rooms
   end
 end
