@@ -82,7 +82,10 @@ module Admin
     end
 
     def set_room
-      @room = Room.find_by(id: params[:id])
+      id = BookingSlots.parse_id(params[:id])
+      return head :not_found unless id
+
+      @room = Room.find_by(id: id)
       head :not_found unless @room
     end
 

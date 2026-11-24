@@ -282,6 +282,29 @@ class AdminRoomsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "returns 404 for malformed room ids without touching an aliased room" do
+    room = commit_room!(name: "Malformed Room Id", capacity: 2)
+
+    [ "#{room.id}abc", "#{room.id}e0", "9223372036854775808" ].each do |id|
+      get admin_room_path(id)
+      assert_response :not_found
+
+      get edit_admin_room_path(id)
+      assert_response :not_found
+
+      patch admin_room_path(id), params: { room: { name: "Aliased Room" } }
+      assert_response :not_found
+
+      delete admin_room_path(id)
+      assert_response :not_found
+    end
+
+    room.reload
+    assert_equal "Malformed Room Id", room.name
+    assert_equal "basement", room.image_key
+    assert Room.exists?(room.id)
+  end
+
   test "returns 404 for an authorized missing room on every member route" do
     get admin_room_path(999_999)
     assert_response :not_found
